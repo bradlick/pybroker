@@ -1223,11 +1223,13 @@ class Strategy(
                 warmup=warmup,
             )
             if train_only:
-                self._logger.walkforward_completed()
-                return None
-            return self._to_test_result(
-                start_dt, end_dt, portfolio, calc_bootstrap
-            )
+                result = None
+            else:
+                result = self._to_test_result(
+                    start_dt, end_dt, portfolio, calc_bootstrap
+                )
+            self._logger.walkforward_completed()
+            return result
         finally:
             scope.unfreeze_data_cols()
 
@@ -1468,7 +1470,6 @@ class Strategy(
             if v is not None
         ]
         metrics_df = pd.DataFrame(metrics, columns=["name", "value"])
-        self._logger.walkforward_completed()
         return TestResult(
             start_date=start_date,
             end_date=end_date,
