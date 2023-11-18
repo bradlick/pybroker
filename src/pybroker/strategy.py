@@ -5,7 +5,7 @@
 This code is licensed under Apache 2.0 with Commons Clause license
 (see LICENSE for details).
 """
-
+import time
 import dataclasses
 import numpy as np
 import pandas as pd
@@ -154,206 +154,273 @@ class BacktestMixin:
         Returns:
             :class:`.TestResult` of the backtest.
         """
-        test_dates = test_data[DataCol.DATE.value].unique()
-        test_dates.sort()
-        test_syms = test_data[DataCol.SYMBOL.value].unique()
+        bt_time, test_data, test_dates = self._backtest_init(
+                                            config=config, 
+                                            executions=executions, 
+                                            sessions=sessions, 
+                                            models=models, 
+                                            indicator_data=indicator_data, 
+                                            test_data=test_data, 
+                                            portfolio=portfolio, 
+                                            pos_size_handler=pos_size_handler
+                                        )
+        for i, date in enumerate(test_dates):
+            self._backtest_date(
+                bt_time=bt_time, 
+                i=i, 
+                date=date,
+                config=config, 
+                before_exec_fn=before_exec_fn, 
+                after_exec_fn=after_exec_fn, 
+                test_data=test_data, 
+                portfolio=portfolio, 
+                pos_size_handler=pos_size_handler, 
+                exit_dates=exit_dates, 
+                slippage_model=slippage_model, 
+                enable_fractional_shares=enable_fractional_shares, 
+                warmup=warmup
+            )
+        self._backtest_complete(bt_time)
+
+    def _backtest_init(
+        self, 
+        config: StrategyConfig, 
+        executions: set[Execution], 
+        sessions: Mapping[str, Mapping], 
+        models: Mapping[ModelSymbol, TrainedModel], 
+        indicator_data: Mapping[IndicatorSymbol, pd.Series],
+        test_data: pd.DataFrame, 
+        portfolio: Portfolio,
+        pos_size_handler: Optional[Callable[[PosSizeContext], None]]
+    ):
+        if not hasattr(self, '_bt_ctx'):
+            self._bt_ctx = {}
+        bt_time = int(time.time())
+        self._bt_ctx[bt_time] = {}
+        self._bt_ctx[bt_time]['test_dates'] = test_data[DataCol.DATE.value].unique()
+        self._bt_ctx[bt_time]['test_dates'].sort()
+        self._bt_ctx[bt_time]['num_dates'] = len(self._bt_ctx[bt_time]['test_dates'])
+        self._bt_ctx[bt_time]['test_syms'] = test_data[DataCol.SYMBOL.value].unique()
         test_data = (
             test_data.reset_index(drop=True)
             .set_index([DataCol.SYMBOL.value, DataCol.DATE.value])
             .sort_index()
         )
-        sym_end_index: dict[str, int] = defaultdict(int)
-        col_scope = ColumnScope(test_data)
-        price_scope = PriceScope(col_scope, sym_end_index)
-        ind_scope = IndicatorScope(indicator_data, test_dates)
-        input_scope = ModelInputScope(col_scope, ind_scope, models)
-        pred_scope = PredictionScope(models, input_scope)
-        pending_order_scope = PendingOrderScope()
-        exec_ctxs: dict[str, ExecContext] = {}
-        exec_fns: dict[str, Callable[[ExecContext], None]] = {}
-        for sym in test_syms:
+        self._bt_ctx[bt_time]['sym_end_index']: dict[str, int] = defaultdict(int)
+        self._bt_ctx[bt_time]['col_scope'] = ColumnScope(test_data)
+        self._bt_ctx[bt_time]['price_scope'] = PriceScope(self._bt_ctx[bt_time]['col_scope'], self._bt_ctx[bt_time]['sym_end_index'])
+        self._bt_ctx[bt_time]['ind_scope'] = IndicatorScope(indicator_data, self._bt_ctx[bt_time]['test_dates'])
+        self._bt_ctx[bt_time]['input_scope'] = ModelInputScope(self._bt_ctx[bt_time]['col_scope'], self._bt_ctx[bt_time]['ind_scope'], models)
+        self._bt_ctx[bt_time]['pred_scope'] = PredictionScope(models, self._bt_ctx[bt_time]['input_scope'])
+        self._bt_ctx[bt_time]['pending_order_scope'] = PendingOrderScope()
+        self._bt_ctx[bt_time]['exec_ctxs']: dict[str, ExecContext] = {}
+        self._bt_ctx[bt_time]['exec_fns']: dict[str, Callable[[ExecContext], None]] = {}
+        for sym in self._bt_ctx[bt_time]['test_syms']:
             for exec in executions:
                 if sym not in exec.symbols:
                     continue
-                exec_ctxs[sym] = ExecContext(
+                self._bt_ctx[bt_time]['exec_ctxs'][sym] = ExecContext(
                     symbol=sym,
                     config=config,
                     portfolio=portfolio,
-                    col_scope=col_scope,
-                    ind_scope=ind_scope,
-                    input_scope=input_scope,
-                    pred_scope=pred_scope,
-                    pending_order_scope=pending_order_scope,
+                    col_scope=self._bt_ctx[bt_time]['col_scope'],
+                    ind_scope=self._bt_ctx[bt_time]['ind_scope'],
+                    input_scope=self._bt_ctx[bt_time]['input_scope'],
+                    pred_scope=self._bt_ctx[bt_time]['pred_scope'],
+                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
                     models=models,
-                    sym_end_index=sym_end_index,
+                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
                     session=sessions[sym],
                 )
                 if exec.fn is not None:
-                    exec_fns[sym] = exec.fn
-        sym_exec_dates = {
+                    self._bt_ctx[bt_time]['exec_fns'][sym] = exec.fn
+        self._bt_ctx[bt_time]['sym_exec_dates'] = {
             sym: frozenset(test_data.loc[pd.IndexSlice[sym, :]].index.values)
-            for sym in exec_ctxs.keys()
+            for sym in self._bt_ctx[bt_time]['exec_ctxs'].keys()
         }
-        cover_sched: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
-        buy_sched: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
-        sell_sched: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
+        self._bt_ctx[bt_time]['cover_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
+        self._bt_ctx[bt_time]['buy_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
+        self._bt_ctx[bt_time]['sell_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
         if pos_size_handler is not None:
-            pos_ctx = PosSizeContext(
+            self._bt_ctx[bt_time]['pos_ctx'] = PosSizeContext(
                 config=config,
                 portfolio=portfolio,
-                col_scope=col_scope,
-                ind_scope=ind_scope,
-                input_scope=input_scope,
-                pred_scope=pred_scope,
-                pending_order_scope=pending_order_scope,
+                col_scope=self._bt_ctx[bt_time]['col_scope'],
+                ind_scope=self._bt_ctx[bt_time]['ind_scope'],
+                input_scope=self._bt_ctx[bt_time]['input_scope'],
+                pred_scope=self._bt_ctx[bt_time]['pred_scope'],
+                pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
                 models=models,
                 sessions=sessions,
-                sym_end_index=sym_end_index,
+                sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
             )
-        logger = StaticScope.instance().logger
-        logger.backtest_executions_start(test_dates)
-        cover_results: deque[ExecResult] = deque()
-        buy_results: deque[ExecResult] = deque()
-        sell_results: deque[ExecResult] = deque()
-        exit_ctxs: deque[ExecContext] = deque()
-        active_ctxs: dict[str, ExecContext] = {}
-        for i, date in enumerate(test_dates):
-            active_ctxs.clear()
-            for sym, ctx in exec_ctxs.items():
-                if date not in sym_exec_dates[sym]:
-                    continue
-                sym_end_index[sym] += 1
-                if warmup and sym_end_index[sym] <= warmup:
-                    continue
-                active_ctxs[sym] = ctx
-                set_exec_ctx_data(ctx, date)
-                if (
+        self._bt_ctx[bt_time]['logger'] = StaticScope.instance().logger
+        self._bt_ctx[bt_time]['logger'].backtest_executions_start(self._bt_ctx[bt_time]['test_dates'])
+        self._bt_ctx[bt_time]['cover_results']: deque[ExecResult] = deque()
+        self._bt_ctx[bt_time]['buy_results']: deque[ExecResult] = deque()
+        self._bt_ctx[bt_time]['sell_results']: deque[ExecResult] = deque()
+        self._bt_ctx[bt_time]['exit_ctxs']: deque[ExecContext] = deque()
+        self._bt_ctx[bt_time]['active_ctxs']: dict[str, ExecContext] = {}
+        return bt_time,test_data,self._bt_ctx[bt_time]['test_dates']
+
+    def _backtest_date(
+        self,
+        bt_time, 
+        i, 
+        date,
+        config: StrategyConfig, 
+        before_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
+        after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
+        test_data: pd.DataFrame, 
+        portfolio: Portfolio,
+        pos_size_handler: Optional[Callable[[PosSizeContext], None]],
+        exit_dates: Mapping[str, np.datetime64], 
+        slippage_model: Optional[SlippageModel] = None, 
+        enable_fractional_shares: bool = False, 
+        warmup: Optional[int] = None
+    ):
+        self._bt_ctx[bt_time]['active_ctxs'].clear()
+        for sym, ctx in self._bt_ctx[bt_time]['exec_ctxs'].items():
+            if date not in self._bt_ctx[bt_time]['sym_exec_dates'][sym]:
+                continue
+            self._bt_ctx[bt_time]['sym_end_index'][sym] += 1
+            if warmup and self._bt_ctx[bt_time]['sym_end_index'][sym] <= warmup:
+                continue
+            self._bt_ctx[bt_time]['active_ctxs'][sym] = ctx
+            set_exec_ctx_data(ctx, date)
+            if (
                     exit_dates
                     and sym in exit_dates
                     and date == exit_dates[sym]
                 ):
-                    exit_ctxs.append(ctx)
-            is_cover_sched = date in cover_sched
-            is_buy_sched = date in buy_sched
-            is_sell_sched = date in sell_sched
-            if (
+                self._bt_ctx[bt_time]['exit_ctxs'].append(ctx)
+        is_cover_sched = date in self._bt_ctx[bt_time]['cover_sched']
+        is_buy_sched = date in self._bt_ctx[bt_time]['buy_sched']
+        is_sell_sched = date in self._bt_ctx[bt_time]['sell_sched']
+        if (
                 config.max_long_positions is not None
                 or pos_size_handler is not None
             ):
-                if is_cover_sched:
-                    cover_sched[date].sort(key=_sort_by_score, reverse=True)
-                elif is_buy_sched:
-                    buy_sched[date].sort(key=_sort_by_score, reverse=True)
-            if is_sell_sched and (
+            if is_cover_sched:
+                self._bt_ctx[bt_time]['cover_sched'][date].sort(key=_sort_by_score, reverse=True)
+            elif is_buy_sched:
+                self._bt_ctx[bt_time]['buy_sched'][date].sort(key=_sort_by_score, reverse=True)
+        if is_sell_sched and (
                 config.max_short_positions is not None
                 or pos_size_handler is not None
             ):
-                sell_sched[date].sort(key=_sort_by_score, reverse=True)
-            if pos_size_handler is not None and (
+            self._bt_ctx[bt_time]['sell_sched'][date].sort(key=_sort_by_score, reverse=True)
+        if pos_size_handler is not None and (
                 is_cover_sched or is_buy_sched or is_sell_sched
             ):
-                pos_size_buy_results = None
-                if is_cover_sched:
-                    pos_size_buy_results = cover_sched[date]
-                elif is_buy_sched:
-                    pos_size_buy_results = buy_sched[date]
-                self._set_pos_sizes(
-                    pos_size_handler=pos_size_handler,
-                    pos_ctx=pos_ctx,
-                    buy_results=pos_size_buy_results,
-                    sell_results=sell_sched[date] if is_sell_sched else None,
-                )
-            portfolio.check_stops(date, price_scope)
+            pos_size_buy_results = None
             if is_cover_sched:
-                self._place_buy_orders(
+                pos_size_buy_results = self._bt_ctx[bt_time]['cover_sched'][date]
+            elif is_buy_sched:
+                pos_size_buy_results = self._bt_ctx[bt_time]['buy_sched'][date]
+            self._set_pos_sizes(
+                    pos_size_handler=pos_size_handler,
+                    pos_ctx=self._bt_ctx[bt_time]['pos_ctx'],
+                    buy_results=pos_size_buy_results,
+                    sell_results=self._bt_ctx[bt_time]['sell_sched'][date] if is_sell_sched else None,
+                )
+        portfolio.check_stops(date, self._bt_ctx[bt_time]['price_scope'])
+        if is_cover_sched:
+            self._place_buy_orders(
                     date=date,
-                    price_scope=price_scope,
-                    pending_order_scope=pending_order_scope,
-                    buy_sched=cover_sched,
+                    price_scope=self._bt_ctx[bt_time]['price_scope'],
+                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
+                    buy_sched=self._bt_ctx[bt_time]['cover_sched'],
                     portfolio=portfolio,
                     enable_fractional_shares=enable_fractional_shares,
                 )
-            if is_sell_sched:
-                self._place_sell_orders(
+        if is_sell_sched:
+            self._place_sell_orders(
                     date=date,
-                    price_scope=price_scope,
-                    pending_order_scope=pending_order_scope,
-                    sell_sched=sell_sched,
+                    price_scope=self._bt_ctx[bt_time]['price_scope'],
+                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
+                    sell_sched=self._bt_ctx[bt_time]['sell_sched'],
                     portfolio=portfolio,
                     enable_fractional_shares=enable_fractional_shares,
                 )
-            if is_buy_sched:
-                self._place_buy_orders(
+        if is_buy_sched:
+            self._place_buy_orders(
                     date=date,
-                    price_scope=price_scope,
-                    pending_order_scope=pending_order_scope,
-                    buy_sched=buy_sched,
+                    price_scope=self._bt_ctx[bt_time]['price_scope'],
+                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
+                    buy_sched=self._bt_ctx[bt_time]['buy_sched'],
                     portfolio=portfolio,
                     enable_fractional_shares=enable_fractional_shares,
                 )
-            portfolio.capture_bar(date, test_data)
-            if before_exec_fn is not None and active_ctxs:
-                before_exec_fn(active_ctxs)
-            for sym, ctx in active_ctxs.items():
-                if sym in exec_fns:
-                    exec_fns[sym](ctx)
-            if after_exec_fn is not None and active_ctxs:
-                after_exec_fn(active_ctxs)
-            for ctx in active_ctxs.values():
-                if slippage_model and (ctx.buy_shares or ctx.sell_shares):
-                    self._apply_slippage(slippage_model, ctx)
-                result = ctx.to_result()
-                if result is None:
-                    continue
-                if result.buy_shares is not None:
-                    if result.cover:
-                        cover_results.append(result)
-                    else:
-                        buy_results.append(result)
-                if result.sell_shares is not None:
-                    sell_results.append(result)
-            while cover_results:
-                self._schedule_order(
-                    result=cover_results.popleft(),
+        portfolio.capture_bar(date, test_data)
+        if before_exec_fn is not None and self._bt_ctx[bt_time]['active_ctxs']:
+            before_exec_fn(self._bt_ctx[bt_time]['active_ctxs'])
+        for sym, ctx in self._bt_ctx[bt_time]['active_ctxs'].items():
+            if sym in self._bt_ctx[bt_time]['exec_fns']:
+                self._bt_ctx[bt_time]['exec_fns'][sym](ctx)
+        if after_exec_fn is not None and self._bt_ctx[bt_time]['active_ctxs']:
+            after_exec_fn(self._bt_ctx[bt_time]['active_ctxs'])
+        for ctx in self._bt_ctx[bt_time]['active_ctxs'].values():
+            if slippage_model and (ctx.buy_shares or ctx.sell_shares):
+                self._apply_slippage(slippage_model, ctx)
+            result = ctx.to_result()
+            if result is None:
+                continue
+            if result.buy_shares is not None:
+                if result.cover:
+                    self._bt_ctx[bt_time]['cover_results'].append(result)
+                else:
+                    self._bt_ctx[bt_time]['buy_results'].append(result)
+            if result.sell_shares is not None:
+                self._bt_ctx[bt_time]['sell_results'].append(result)
+        while self._bt_ctx[bt_time]['cover_results']:
+            self._schedule_order(
+                    result=self._bt_ctx[bt_time]['cover_results'].popleft(),
                     created=date,
-                    sym_end_index=sym_end_index,
+                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
                     delay=config.buy_delay,
-                    sched=cover_sched,
-                    col_scope=col_scope,
-                    pending_order_scope=pending_order_scope,
+                    sched=self._bt_ctx[bt_time]['cover_sched'],
+                    col_scope=self._bt_ctx[bt_time]['col_scope'],
+                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
                 )
-            while buy_results:
-                self._schedule_order(
-                    result=buy_results.popleft(),
+        while self._bt_ctx[bt_time]['buy_results']:
+            self._schedule_order(
+                    result=self._bt_ctx[bt_time]['buy_results'].popleft(),
                     created=date,
-                    sym_end_index=sym_end_index,
+                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
                     delay=config.buy_delay,
-                    sched=buy_sched,
-                    col_scope=col_scope,
-                    pending_order_scope=pending_order_scope,
+                    sched=self._bt_ctx[bt_time]['buy_sched'],
+                    col_scope=self._bt_ctx[bt_time]['col_scope'],
+                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
                 )
-            while sell_results:
-                self._schedule_order(
-                    result=sell_results.popleft(),
+        while self._bt_ctx[bt_time]['sell_results']:
+            self._schedule_order(
+                    result=self._bt_ctx[bt_time]['sell_results'].popleft(),
                     created=date,
-                    sym_end_index=sym_end_index,
+                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
                     delay=config.sell_delay,
-                    sched=sell_sched,
-                    col_scope=col_scope,
-                    pending_order_scope=pending_order_scope,
+                    sched=self._bt_ctx[bt_time]['sell_sched'],
+                    col_scope=self._bt_ctx[bt_time]['col_scope'],
+                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
                 )
-            while exit_ctxs:
-                self._exit_position(
+        while self._bt_ctx[bt_time]['exit_ctxs']:
+            self._exit_position(
                     portfolio=portfolio,
                     date=date,
-                    ctx=exit_ctxs.popleft(),
+                    ctx=self._bt_ctx[bt_time]['exit_ctxs'].popleft(),
                     exit_cover_fill_price=config.exit_cover_fill_price,
                     exit_sell_fill_price=config.exit_sell_fill_price,
-                    price_scope=price_scope,
+                    price_scope=self._bt_ctx[bt_time]['price_scope'],
                 )
-            portfolio.incr_bars()
-            if i % 10 == 0 or i == len(test_dates) - 1:
-                logger.backtest_executions_loading(i + 1)
+        portfolio.incr_bars()
+        if i % 10 == 0 or i == self._bt_ctx[bt_time]['num_dates'] - 1:
+            self._bt_ctx[bt_time]['logger'].backtest_executions_loading(i + 1)
+
+    def _backtest_complete(
+        self, 
+        bt_time
+    ):
+        del self._bt_ctx[bt_time]
 
     def _apply_slippage(
         self,
@@ -1226,8 +1293,11 @@ class Strategy(
                 result = None
             else:
                 result = self._to_test_result(
-                    start_dt, end_dt, portfolio, calc_bootstrap
-                )
+                            start_date=start_dt, 
+                            end_date=end_dt, 
+                            portfolio=portfolio, 
+                            calc_bootstrap=calc_bootstrap
+                        )
             self._logger.walkforward_completed()
             return result
         finally:
