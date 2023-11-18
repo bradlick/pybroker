@@ -190,17 +190,12 @@ class TestBacktestMixin:
         mock_portfolio = Mock()
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':mock_portfolio,'exit_dates':{}},
             config=StrategyConfig(),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=mock_portfolio,
-            pos_size_handler=pos_size_handler,
-            exit_dates={},
+            pos_size_handler=pos_size_handler
         )
         buy_df = data_source_df[data_source_df["symbol"] == "SPY"]
         buy_dates = buy_df["date"].unique()[1:]
@@ -261,17 +256,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(1_000_000)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=pos_size_handler,
-            exit_dates={},
+            pos_size_handler=pos_size_handler
         )
         buy_df = data_source_df[data_source_df["symbol"] == "SPY"]
         buy_dates = buy_df["date"].unique()[1:]
@@ -316,17 +306,12 @@ class TestBacktestMixin:
         mock_portfolio = Mock()
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':mock_portfolio,'exit_dates':{}},
             config=StrategyConfig(buy_delay=2),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=mock_portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         buy_df = data_source_df[data_source_df["symbol"] == "SPY"]
         buy_dates = buy_df["date"].unique()[2:]
@@ -358,17 +343,12 @@ class TestBacktestMixin:
         mock_portfolio = Mock()
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':mock_portfolio,'exit_dates':{}},
             config=StrategyConfig(sell_delay=2),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=mock_portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         sell_df = data_source_df[data_source_df["symbol"] == "AAPL"]
         sell_dates = sell_df["date"].unique()[2:]
@@ -403,17 +383,12 @@ class TestBacktestMixin:
             ValueError, match=re.escape("hold_bars must be greater than 0.")
         ):
             mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':Mock(),'exit_dates':{}},
                 config=StrategyConfig(),
                 executions=execs,
                 before_exec_fn=None,
                 after_exec_fn=None,
-                sessions=defaultdict(dict),
-                models={},
-                indicator_data={},
-                test_data=data_source_df,
-                portfolio=Mock(),
-                pos_size_handler=None,
-                exit_dates={},
+                pos_size_handler=None
             )
 
     def test_backtest_executions_when_invalid_sell_hold_bars_then_error(
@@ -436,17 +411,12 @@ class TestBacktestMixin:
             ValueError, match=re.escape("hold_bars must be greater than 0.")
         ):
             mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':Mock(),'exit_dates':{}},
                 config=StrategyConfig(),
                 executions=execs,
                 before_exec_fn=None,
                 after_exec_fn=None,
-                sessions=defaultdict(dict),
-                models={},
-                indicator_data={},
-                test_data=data_source_df,
-                portfolio=Mock(),
-                pos_size_handler=None,
-                exit_dates={},
+                pos_size_handler=None
             )
 
     def test_backtest_executions_when_no_fn(self, data_source_df):
@@ -461,17 +431,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(100_000)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         assert len(portfolio.bars) == len(data_source_df["date"].unique())
         assert not len(portfolio.position_bars)
@@ -493,17 +458,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(100_000)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df[data_source_df["symbol"] != "AAPL"],'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df[data_source_df["symbol"] != "AAPL"],
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         assert len(portfolio.bars) == len(data_source_df["date"].unique())
         assert not len(portfolio.position_bars)
@@ -527,17 +487,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(100_000)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(buy_delay=1_000),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
 
         assert len(portfolio.bars) == len(data_source_df["date"].unique())
@@ -562,17 +517,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(100_000)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(sell_delay=1000),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         assert len(portfolio.bars)
         assert not len(portfolio.position_bars)
@@ -599,17 +549,12 @@ class TestBacktestMixin:
         mock_portfolio = Mock()
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':mock_portfolio,'exit_dates':{}},
             config=StrategyConfig(max_long_positions=1),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=mock_portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         df = data_source_df[data_source_df["symbol"].isin(["AAPL", "SPY"])]
         buy_dates = sorted(df["date"].values)[2:]
@@ -649,17 +594,12 @@ class TestBacktestMixin:
         mock_portfolio = Mock()
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':mock_portfolio,'exit_dates':{}},
             config=StrategyConfig(max_short_positions=1),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=mock_portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         df = data_source_df[data_source_df["symbol"].isin(["AAPL", "SPY"])]
         sell_dates = sorted(df["date"].values)[2:]
@@ -703,17 +643,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(100_000, max_short_positions=1)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(max_short_positions=1),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         assert len(portfolio.short_positions) == 1
         assert not portfolio.long_positions
@@ -755,17 +690,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(100_000, max_long_positions=1)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(max_long_positions=1),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         dates = data_source_df["date"].unique()[1:]
         orders = portfolio.orders
@@ -824,17 +754,12 @@ class TestBacktestMixin:
         mock_portfolio = Mock()
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':df,'portfolio':mock_portfolio,'exit_dates':{}},
             config=StrategyConfig(),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=df,
-            portfolio=mock_portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         buy_dates = dates[1:]
         assert len(mock_portfolio.buy.call_args_list) == len(buy_dates)
@@ -864,17 +789,12 @@ class TestBacktestMixin:
         mixin = BacktestMixin()
         with pytest.raises(ValueError, match=r"Unknown price: .*"):
             mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':Portfolio(100_000),'exit_dates':{}},
                 config=StrategyConfig(),
                 executions=execs,
                 before_exec_fn=None,
                 after_exec_fn=None,
-                sessions=defaultdict(dict),
-                models={},
-                indicator_data={},
-                test_data=data_source_df,
-                portfolio=Portfolio(100_000),
-                pos_size_handler=None,
-                exit_dates={},
+                pos_size_handler=None
             )
 
     def test_backtest_executions_when_buy_limit_and_no_shares_then_error(
@@ -899,17 +819,12 @@ class TestBacktestMixin:
             ),
         ):
             mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':Portfolio(100_000),'exit_dates':{}},
                 config=StrategyConfig(),
                 executions=execs,
                 before_exec_fn=None,
                 after_exec_fn=None,
-                sessions=defaultdict(dict),
-                models={},
-                indicator_data={},
-                test_data=data_source_df,
-                portfolio=Portfolio(100_000),
-                pos_size_handler=None,
-                exit_dates={},
+                pos_size_handler=None
             )
 
     def test_backtest_executions_when_sell_limit_and_no_shares_then_error(
@@ -934,17 +849,12 @@ class TestBacktestMixin:
             ),
         ):
             mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':Portfolio(100_000),'exit_dates':{}},
                 config=StrategyConfig(),
                 executions=execs,
                 before_exec_fn=None,
                 after_exec_fn=None,
-                sessions=defaultdict(dict),
-                models={},
-                indicator_data={},
-                test_data=data_source_df,
-                portfolio=Portfolio(100_000),
-                pos_size_handler=None,
-                exit_dates={},
+                pos_size_handler=None
             )
 
     def test_backtest_executions_when_buy_order_not_filled(
@@ -965,17 +875,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(1)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         assert not len(portfolio.orders)
 
@@ -998,17 +903,12 @@ class TestBacktestMixin:
         portfolio = Portfolio(1)
         mixin = BacktestMixin()
         mixin.backtest_executions(
+            stack_ctx={'sessions':defaultdict(dict),'models':{},'indicator_data':{},'test_data':data_source_df,'portfolio':portfolio,'exit_dates':{}},
             config=StrategyConfig(),
             executions=execs,
             before_exec_fn=None,
             after_exec_fn=None,
-            sessions=defaultdict(dict),
-            models={},
-            indicator_data={},
-            test_data=data_source_df,
-            portfolio=portfolio,
-            pos_size_handler=None,
-            exit_dates={},
+            pos_size_handler=None
         )
         assert not len(portfolio.orders)
 

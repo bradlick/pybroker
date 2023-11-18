@@ -5,7 +5,6 @@
 This code is licensed under Apache 2.0 with Commons Clause license
 (see LICENSE for details).
 """
-import time
 import dataclasses
 import numpy as np
 import pandas as pd
@@ -111,17 +110,12 @@ class BacktestMixin:
 
     def backtest_executions(
         self,
+        stack_ctx: dict,
         config: StrategyConfig,
         executions: set[Execution],
         before_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
-        sessions: Mapping[str, Mapping],
-        models: Mapping[ModelSymbol, TrainedModel],
-        indicator_data: Mapping[IndicatorSymbol, pd.Series],
-        test_data: pd.DataFrame,
-        portfolio: Portfolio,
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
-        exit_dates: Mapping[str, np.datetime64],
         slippage_model: Optional[SlippageModel] = None,
         enable_fractional_shares: bool = False,
         warmup: Optional[int] = None,
@@ -154,213 +148,193 @@ class BacktestMixin:
         Returns:
             :class:`.TestResult` of the backtest.
         """
-        bt_time, test_data, test_dates = self._backtest_init(
-                                            config=config, 
-                                            executions=executions, 
-                                            sessions=sessions, 
-                                            models=models, 
-                                            indicator_data=indicator_data, 
-                                            test_data=test_data, 
-                                            portfolio=portfolio, 
-                                            pos_size_handler=pos_size_handler
-                                        )
-        for i, date in enumerate(test_dates):
+        self._backtest_init(
+            stack_ctx=stack_ctx,
+            config=config, 
+            executions=executions,  
+            pos_size_handler=pos_size_handler
+        )
+        for i, date in enumerate(stack_ctx['test_dates']):
             self._backtest_date(
-                bt_time=bt_time, 
                 i=i, 
                 date=date,
+                stack_ctx=stack_ctx,
                 config=config, 
                 before_exec_fn=before_exec_fn, 
                 after_exec_fn=after_exec_fn, 
-                test_data=test_data, 
-                portfolio=portfolio, 
                 pos_size_handler=pos_size_handler, 
-                exit_dates=exit_dates, 
                 slippage_model=slippage_model, 
                 enable_fractional_shares=enable_fractional_shares, 
                 warmup=warmup
             )
-        self._backtest_complete(bt_time)
 
     def _backtest_init(
-        self, 
+        self,
+        stack_ctx: dict,
         config: StrategyConfig, 
         executions: set[Execution], 
-        sessions: Mapping[str, Mapping], 
-        models: Mapping[ModelSymbol, TrainedModel], 
-        indicator_data: Mapping[IndicatorSymbol, pd.Series],
-        test_data: pd.DataFrame, 
-        portfolio: Portfolio,
         pos_size_handler: Optional[Callable[[PosSizeContext], None]]
     ):
-        if not hasattr(self, '_bt_ctx'):
-            self._bt_ctx = {}
-        bt_time = int(time.time())
-        self._bt_ctx[bt_time] = {}
-        self._bt_ctx[bt_time]['test_dates'] = test_data[DataCol.DATE.value].unique()
-        self._bt_ctx[bt_time]['test_dates'].sort()
-        self._bt_ctx[bt_time]['num_dates'] = len(self._bt_ctx[bt_time]['test_dates'])
-        self._bt_ctx[bt_time]['test_syms'] = test_data[DataCol.SYMBOL.value].unique()
-        test_data = (
-            test_data.reset_index(drop=True)
+        stack_ctx['test_dates'] = stack_ctx['test_data'][DataCol.DATE.value].unique()
+        stack_ctx['test_dates'].sort()
+        stack_ctx['num_dates'] = len(stack_ctx['test_dates'])
+        stack_ctx['test_syms'] = stack_ctx['test_data'][DataCol.SYMBOL.value].unique()
+        stack_ctx['test_data'] = (
+            stack_ctx['test_data'].reset_index(drop=True)
             .set_index([DataCol.SYMBOL.value, DataCol.DATE.value])
             .sort_index()
         )
-        self._bt_ctx[bt_time]['sym_end_index']: dict[str, int] = defaultdict(int)
-        self._bt_ctx[bt_time]['col_scope'] = ColumnScope(test_data)
-        self._bt_ctx[bt_time]['price_scope'] = PriceScope(self._bt_ctx[bt_time]['col_scope'], self._bt_ctx[bt_time]['sym_end_index'])
-        self._bt_ctx[bt_time]['ind_scope'] = IndicatorScope(indicator_data, self._bt_ctx[bt_time]['test_dates'])
-        self._bt_ctx[bt_time]['input_scope'] = ModelInputScope(self._bt_ctx[bt_time]['col_scope'], self._bt_ctx[bt_time]['ind_scope'], models)
-        self._bt_ctx[bt_time]['pred_scope'] = PredictionScope(models, self._bt_ctx[bt_time]['input_scope'])
-        self._bt_ctx[bt_time]['pending_order_scope'] = PendingOrderScope()
-        self._bt_ctx[bt_time]['exec_ctxs']: dict[str, ExecContext] = {}
-        self._bt_ctx[bt_time]['exec_fns']: dict[str, Callable[[ExecContext], None]] = {}
-        for sym in self._bt_ctx[bt_time]['test_syms']:
+        stack_ctx['sym_end_index']: dict[str, int] = defaultdict(int)
+        stack_ctx['col_scope'] = ColumnScope(stack_ctx['test_data'])
+        stack_ctx['price_scope'] = PriceScope(stack_ctx['col_scope'], stack_ctx['sym_end_index'])
+        stack_ctx['ind_scope'] = IndicatorScope(stack_ctx['indicator_data'], stack_ctx['test_dates'])
+        stack_ctx['input_scope'] = ModelInputScope(stack_ctx['col_scope'], stack_ctx['ind_scope'], stack_ctx['models'])
+        stack_ctx['pred_scope'] = PredictionScope(stack_ctx['models'], stack_ctx['input_scope'])
+        stack_ctx['pending_order_scope'] = PendingOrderScope()
+        stack_ctx['exec_ctxs']: dict[str, ExecContext] = {}
+        stack_ctx['exec_fns']: dict[str, Callable[[ExecContext], None]] = {}
+        for sym in stack_ctx['test_syms']:
             for exec in executions:
                 if sym not in exec.symbols:
                     continue
-                self._bt_ctx[bt_time]['exec_ctxs'][sym] = ExecContext(
+                stack_ctx['exec_ctxs'][sym] = ExecContext(
                     symbol=sym,
                     config=config,
-                    portfolio=portfolio,
-                    col_scope=self._bt_ctx[bt_time]['col_scope'],
-                    ind_scope=self._bt_ctx[bt_time]['ind_scope'],
-                    input_scope=self._bt_ctx[bt_time]['input_scope'],
-                    pred_scope=self._bt_ctx[bt_time]['pred_scope'],
-                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
-                    models=models,
-                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
-                    session=sessions[sym],
+                    portfolio=stack_ctx['portfolio'],
+                    col_scope=stack_ctx['col_scope'],
+                    ind_scope=stack_ctx['ind_scope'],
+                    input_scope=stack_ctx['input_scope'],
+                    pred_scope=stack_ctx['pred_scope'],
+                    pending_order_scope=stack_ctx['pending_order_scope'],
+                    models=stack_ctx['models'],
+                    sym_end_index=stack_ctx['sym_end_index'],
+                    session=stack_ctx['sessions'][sym],
                 )
                 if exec.fn is not None:
-                    self._bt_ctx[bt_time]['exec_fns'][sym] = exec.fn
-        self._bt_ctx[bt_time]['sym_exec_dates'] = {
-            sym: frozenset(test_data.loc[pd.IndexSlice[sym, :]].index.values)
-            for sym in self._bt_ctx[bt_time]['exec_ctxs'].keys()
+                    stack_ctx['exec_fns'][sym] = exec.fn
+        stack_ctx['sym_exec_dates'] = {
+            sym: frozenset(stack_ctx['test_data'].loc[pd.IndexSlice[sym, :]].index.values)
+            for sym in stack_ctx['exec_ctxs'].keys()
         }
-        self._bt_ctx[bt_time]['cover_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
-        self._bt_ctx[bt_time]['buy_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
-        self._bt_ctx[bt_time]['sell_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
+        stack_ctx['cover_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
+        stack_ctx['buy_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
+        stack_ctx['sell_sched']: dict[np.datetime64, list[ExecResult]] = defaultdict(list)
         if pos_size_handler is not None:
-            self._bt_ctx[bt_time]['pos_ctx'] = PosSizeContext(
+            stack_ctx['pos_ctx'] = PosSizeContext(
                 config=config,
-                portfolio=portfolio,
-                col_scope=self._bt_ctx[bt_time]['col_scope'],
-                ind_scope=self._bt_ctx[bt_time]['ind_scope'],
-                input_scope=self._bt_ctx[bt_time]['input_scope'],
-                pred_scope=self._bt_ctx[bt_time]['pred_scope'],
-                pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
-                models=models,
-                sessions=sessions,
-                sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
+                portfolio=stack_ctx['portfolio'],
+                col_scope=stack_ctx['col_scope'],
+                ind_scope=stack_ctx['ind_scope'],
+                input_scope=stack_ctx['input_scope'],
+                pred_scope=stack_ctx['pred_scope'],
+                pending_order_scope=stack_ctx['pending_order_scope'],
+                models=stack_ctx['models'],
+                sessions=stack_ctx['sessions'],
+                sym_end_index=stack_ctx['sym_end_index'],
             )
-        self._bt_ctx[bt_time]['logger'] = StaticScope.instance().logger
-        self._bt_ctx[bt_time]['logger'].backtest_executions_start(self._bt_ctx[bt_time]['test_dates'])
-        self._bt_ctx[bt_time]['cover_results']: deque[ExecResult] = deque()
-        self._bt_ctx[bt_time]['buy_results']: deque[ExecResult] = deque()
-        self._bt_ctx[bt_time]['sell_results']: deque[ExecResult] = deque()
-        self._bt_ctx[bt_time]['exit_ctxs']: deque[ExecContext] = deque()
-        self._bt_ctx[bt_time]['active_ctxs']: dict[str, ExecContext] = {}
-        return bt_time,test_data,self._bt_ctx[bt_time]['test_dates']
+        stack_ctx['logger'] = StaticScope.instance().logger
+        stack_ctx['logger'].backtest_executions_start(stack_ctx['test_dates'])
+        stack_ctx['cover_results']: deque[ExecResult] = deque()
+        stack_ctx['buy_results']: deque[ExecResult] = deque()
+        stack_ctx['sell_results']: deque[ExecResult] = deque()
+        stack_ctx['exit_ctxs']: deque[ExecContext] = deque()
+        stack_ctx['active_ctxs']: dict[str, ExecContext] = {}
 
     def _backtest_date(
-        self,
-        bt_time, 
-        i, 
+        self, 
+        i: int, 
         date,
+        stack_ctx: dict,
         config: StrategyConfig, 
         before_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
-        test_data: pd.DataFrame, 
-        portfolio: Portfolio,
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
-        exit_dates: Mapping[str, np.datetime64], 
         slippage_model: Optional[SlippageModel] = None, 
         enable_fractional_shares: bool = False, 
         warmup: Optional[int] = None
     ):
-        self._bt_ctx[bt_time]['active_ctxs'].clear()
-        for sym, ctx in self._bt_ctx[bt_time]['exec_ctxs'].items():
-            if date not in self._bt_ctx[bt_time]['sym_exec_dates'][sym]:
+        stack_ctx['active_ctxs'].clear()
+        for sym, ctx in stack_ctx['exec_ctxs'].items():
+            if date not in stack_ctx['sym_exec_dates'][sym]:
                 continue
-            self._bt_ctx[bt_time]['sym_end_index'][sym] += 1
-            if warmup and self._bt_ctx[bt_time]['sym_end_index'][sym] <= warmup:
+            stack_ctx['sym_end_index'][sym] += 1
+            if warmup and stack_ctx['sym_end_index'][sym] <= warmup:
                 continue
-            self._bt_ctx[bt_time]['active_ctxs'][sym] = ctx
+            stack_ctx['active_ctxs'][sym] = ctx
             set_exec_ctx_data(ctx, date)
             if (
-                    exit_dates
-                    and sym in exit_dates
-                    and date == exit_dates[sym]
+                    stack_ctx['exit_dates']
+                    and sym in  stack_ctx['exit_dates']
+                    and date ==  stack_ctx['exit_dates'][sym]
                 ):
-                self._bt_ctx[bt_time]['exit_ctxs'].append(ctx)
-        is_cover_sched = date in self._bt_ctx[bt_time]['cover_sched']
-        is_buy_sched = date in self._bt_ctx[bt_time]['buy_sched']
-        is_sell_sched = date in self._bt_ctx[bt_time]['sell_sched']
+                stack_ctx['exit_ctxs'].append(ctx)
+        is_cover_sched = date in stack_ctx['cover_sched']
+        is_buy_sched = date in stack_ctx['buy_sched']
+        is_sell_sched = date in stack_ctx['sell_sched']
         if (
                 config.max_long_positions is not None
                 or pos_size_handler is not None
             ):
             if is_cover_sched:
-                self._bt_ctx[bt_time]['cover_sched'][date].sort(key=_sort_by_score, reverse=True)
+                stack_ctx['cover_sched'][date].sort(key=_sort_by_score, reverse=True)
             elif is_buy_sched:
-                self._bt_ctx[bt_time]['buy_sched'][date].sort(key=_sort_by_score, reverse=True)
+                stack_ctx['buy_sched'][date].sort(key=_sort_by_score, reverse=True)
         if is_sell_sched and (
                 config.max_short_positions is not None
                 or pos_size_handler is not None
             ):
-            self._bt_ctx[bt_time]['sell_sched'][date].sort(key=_sort_by_score, reverse=True)
+            stack_ctx['sell_sched'][date].sort(key=_sort_by_score, reverse=True)
         if pos_size_handler is not None and (
                 is_cover_sched or is_buy_sched or is_sell_sched
             ):
             pos_size_buy_results = None
             if is_cover_sched:
-                pos_size_buy_results = self._bt_ctx[bt_time]['cover_sched'][date]
+                pos_size_buy_results = stack_ctx['cover_sched'][date]
             elif is_buy_sched:
-                pos_size_buy_results = self._bt_ctx[bt_time]['buy_sched'][date]
+                pos_size_buy_results = stack_ctx['buy_sched'][date]
             self._set_pos_sizes(
                     pos_size_handler=pos_size_handler,
-                    pos_ctx=self._bt_ctx[bt_time]['pos_ctx'],
+                    pos_ctx=stack_ctx['pos_ctx'],
                     buy_results=pos_size_buy_results,
-                    sell_results=self._bt_ctx[bt_time]['sell_sched'][date] if is_sell_sched else None,
+                    sell_results=stack_ctx['sell_sched'][date] if is_sell_sched else None,
                 )
-        portfolio.check_stops(date, self._bt_ctx[bt_time]['price_scope'])
+        stack_ctx['portfolio'].check_stops(date, stack_ctx['price_scope'])
         if is_cover_sched:
             self._place_buy_orders(
                     date=date,
-                    price_scope=self._bt_ctx[bt_time]['price_scope'],
-                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
-                    buy_sched=self._bt_ctx[bt_time]['cover_sched'],
-                    portfolio=portfolio,
+                    price_scope=stack_ctx['price_scope'],
+                    pending_order_scope=stack_ctx['pending_order_scope'],
+                    buy_sched=stack_ctx['cover_sched'],
+                    portfolio=stack_ctx['portfolio'],
                     enable_fractional_shares=enable_fractional_shares,
                 )
         if is_sell_sched:
             self._place_sell_orders(
                     date=date,
-                    price_scope=self._bt_ctx[bt_time]['price_scope'],
-                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
-                    sell_sched=self._bt_ctx[bt_time]['sell_sched'],
-                    portfolio=portfolio,
+                    price_scope=stack_ctx['price_scope'],
+                    pending_order_scope=stack_ctx['pending_order_scope'],
+                    sell_sched=stack_ctx['sell_sched'],
+                    portfolio=stack_ctx['portfolio'],
                     enable_fractional_shares=enable_fractional_shares,
                 )
         if is_buy_sched:
             self._place_buy_orders(
                     date=date,
-                    price_scope=self._bt_ctx[bt_time]['price_scope'],
-                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
-                    buy_sched=self._bt_ctx[bt_time]['buy_sched'],
-                    portfolio=portfolio,
+                    price_scope=stack_ctx['price_scope'],
+                    pending_order_scope=stack_ctx['pending_order_scope'],
+                    buy_sched=stack_ctx['buy_sched'],
+                    portfolio=stack_ctx['portfolio'],
                     enable_fractional_shares=enable_fractional_shares,
                 )
-        portfolio.capture_bar(date, test_data)
-        if before_exec_fn is not None and self._bt_ctx[bt_time]['active_ctxs']:
-            before_exec_fn(self._bt_ctx[bt_time]['active_ctxs'])
-        for sym, ctx in self._bt_ctx[bt_time]['active_ctxs'].items():
-            if sym in self._bt_ctx[bt_time]['exec_fns']:
-                self._bt_ctx[bt_time]['exec_fns'][sym](ctx)
-        if after_exec_fn is not None and self._bt_ctx[bt_time]['active_ctxs']:
-            after_exec_fn(self._bt_ctx[bt_time]['active_ctxs'])
-        for ctx in self._bt_ctx[bt_time]['active_ctxs'].values():
+        stack_ctx['portfolio'].capture_bar(date, stack_ctx['test_data'])
+        if before_exec_fn is not None and stack_ctx['active_ctxs']:
+            before_exec_fn(stack_ctx['active_ctxs'])
+        for sym, ctx in stack_ctx['active_ctxs'].items():
+            if sym in stack_ctx['exec_fns']:
+                stack_ctx['exec_fns'][sym](ctx)
+        if after_exec_fn is not None and stack_ctx['active_ctxs']:
+            after_exec_fn(stack_ctx['active_ctxs'])
+        for ctx in stack_ctx['active_ctxs'].values():
             if slippage_model and (ctx.buy_shares or ctx.sell_shares):
                 self._apply_slippage(slippage_model, ctx)
             result = ctx.to_result()
@@ -368,59 +342,53 @@ class BacktestMixin:
                 continue
             if result.buy_shares is not None:
                 if result.cover:
-                    self._bt_ctx[bt_time]['cover_results'].append(result)
+                    stack_ctx['cover_results'].append(result)
                 else:
-                    self._bt_ctx[bt_time]['buy_results'].append(result)
+                    stack_ctx['buy_results'].append(result)
             if result.sell_shares is not None:
-                self._bt_ctx[bt_time]['sell_results'].append(result)
-        while self._bt_ctx[bt_time]['cover_results']:
+                stack_ctx['sell_results'].append(result)
+        while stack_ctx['cover_results']:
             self._schedule_order(
-                    result=self._bt_ctx[bt_time]['cover_results'].popleft(),
+                    result=stack_ctx['cover_results'].popleft(),
                     created=date,
-                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
+                    sym_end_index=stack_ctx['sym_end_index'],
                     delay=config.buy_delay,
-                    sched=self._bt_ctx[bt_time]['cover_sched'],
-                    col_scope=self._bt_ctx[bt_time]['col_scope'],
-                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
+                    sched=stack_ctx['cover_sched'],
+                    col_scope=stack_ctx['col_scope'],
+                    pending_order_scope=stack_ctx['pending_order_scope'],
                 )
-        while self._bt_ctx[bt_time]['buy_results']:
+        while stack_ctx['buy_results']:
             self._schedule_order(
-                    result=self._bt_ctx[bt_time]['buy_results'].popleft(),
+                    result=stack_ctx['buy_results'].popleft(),
                     created=date,
-                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
+                    sym_end_index=stack_ctx['sym_end_index'],
                     delay=config.buy_delay,
-                    sched=self._bt_ctx[bt_time]['buy_sched'],
-                    col_scope=self._bt_ctx[bt_time]['col_scope'],
-                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
+                    sched=stack_ctx['buy_sched'],
+                    col_scope=stack_ctx['col_scope'],
+                    pending_order_scope=stack_ctx['pending_order_scope'],
                 )
-        while self._bt_ctx[bt_time]['sell_results']:
+        while stack_ctx['sell_results']:
             self._schedule_order(
-                    result=self._bt_ctx[bt_time]['sell_results'].popleft(),
+                    result=stack_ctx['sell_results'].popleft(),
                     created=date,
-                    sym_end_index=self._bt_ctx[bt_time]['sym_end_index'],
+                    sym_end_index=stack_ctx['sym_end_index'],
                     delay=config.sell_delay,
-                    sched=self._bt_ctx[bt_time]['sell_sched'],
-                    col_scope=self._bt_ctx[bt_time]['col_scope'],
-                    pending_order_scope=self._bt_ctx[bt_time]['pending_order_scope'],
+                    sched=stack_ctx['sell_sched'],
+                    col_scope=stack_ctx['col_scope'],
+                    pending_order_scope=stack_ctx['pending_order_scope'],
                 )
-        while self._bt_ctx[bt_time]['exit_ctxs']:
+        while stack_ctx['exit_ctxs']:
             self._exit_position(
-                    portfolio=portfolio,
+                    portfolio=stack_ctx['portfolio'],
                     date=date,
-                    ctx=self._bt_ctx[bt_time]['exit_ctxs'].popleft(),
+                    ctx=stack_ctx['exit_ctxs'].popleft(),
                     exit_cover_fill_price=config.exit_cover_fill_price,
                     exit_sell_fill_price=config.exit_sell_fill_price,
-                    price_scope=self._bt_ctx[bt_time]['price_scope'],
+                    price_scope=stack_ctx['price_scope'],
                 )
-        portfolio.incr_bars()
-        if i % 10 == 0 or i == self._bt_ctx[bt_time]['num_dates'] - 1:
-            self._bt_ctx[bt_time]['logger'].backtest_executions_loading(i + 1)
-
-    def _backtest_complete(
-        self, 
-        bt_time
-    ):
-        del self._bt_ctx[bt_time]
+        stack_ctx['portfolio'].incr_bars()
+        if i % 10 == 0 or i == stack_ctx['num_dates'] - 1:
+            stack_ctx['logger'].backtest_executions_loading(i + 1)
 
     def _apply_slippage(
         self,
@@ -1215,6 +1183,7 @@ class Strategy(
         """
         if warmup is not None and warmup < 1:
             raise ValueError("warmup must be > 0.")
+        stack_ctx = {}
         scope = StaticScope.instance()
         try:
             scope.freeze_data_cols()
@@ -1241,33 +1210,33 @@ class Strategy(
             if start_dt is not None and end_dt is not None:
                 verify_date_range(start_dt, end_dt)
             self._logger.walkforward_start(start_dt, end_dt)
-            df = self._fetch_data(timeframe)
-            day_ids = self._to_day_ids(days)
-            df = self._filter_dates(
-                df=df,
+            stack_ctx['df'] = self._fetch_data(timeframe)
+            stack_ctx['day_ids'] = self._to_day_ids(days)
+            stack_ctx['df'] = self._filter_dates(
+                df=stack_ctx['df'],
                 start_date=start_dt,
                 end_date=end_dt,
                 between_time=between_time,
-                days=day_ids,
+                days=stack_ctx['day_ids'],
             )
-            tf_seconds = to_seconds(timeframe)
-            indicator_data = self._fetch_indicators(
-                df=df,
+            stack_ctx['tf_seconds'] = to_seconds(timeframe)
+            stack_ctx['indicator_data'] = self._fetch_indicators(
+                df=stack_ctx['df'],
                 cache_date_fields=CacheDateFields(
                     start_date=start_dt,
                     end_date=end_dt,
-                    tf_seconds=tf_seconds,
+                    tf_seconds=stack_ctx['tf_seconds'],
                     between_time=between_time,
-                    days=day_ids,
+                    days=stack_ctx['day_ids'],
                 ),
                 disable_parallel=disable_parallel,
             )
-            train_only = (
+            stack_ctx['train_only'] = (
                 self._before_exec_fn is None
                 and self._after_exec_fn is None
                 and all(map(lambda e: e.fn is None, self._executions))
             )
-            portfolio = Portfolio(
+            stack_ctx['portfolio'] = Portfolio(
                 self._config.initial_cash,
                 self._config.fee_mode,
                 self._config.fee_amount,
@@ -1276,26 +1245,21 @@ class Strategy(
                 self._config.max_short_positions,
             )
             self._run_walkforward(
-                portfolio=portfolio,
-                df=df,
-                indicator_data=indicator_data,
-                tf_seconds=tf_seconds,
+                stack_ctx=stack_ctx,
                 between_time=between_time,
-                days=day_ids,
                 windows=windows,
                 lookahead=lookahead,
                 train_size=train_size,
                 shuffle=shuffle,
-                train_only=train_only,
                 warmup=warmup,
             )
-            if train_only:
+            if stack_ctx['train_only']:
                 result = None
             else:
                 result = self._to_test_result(
                             start_date=start_dt, 
                             end_date=end_dt, 
-                            portfolio=portfolio, 
+                            portfolio=stack_ctx['portfolio'], 
                             calc_bootstrap=calc_bootstrap
                         )
             self._logger.walkforward_completed()
@@ -1327,76 +1291,66 @@ class Strategy(
 
     def _run_walkforward(
         self,
-        portfolio: Portfolio,
-        df: pd.DataFrame,
-        indicator_data: dict[IndicatorSymbol, pd.Series],
-        tf_seconds: int,
+        stack_ctx: dict,
         between_time: Optional[tuple[str, str]],
-        days: Optional[tuple[int]],
         windows: int,
         lookahead: int,
         train_size: float,
         shuffle: bool,
-        train_only: bool,
         warmup: Optional[int],
     ):
-        sessions: dict[str, dict] = defaultdict(dict)
-        exit_dates: dict[str, np.datetime64] = {}
+        stack_ctx['sessions']: dict[str, dict] = defaultdict(dict)
+        stack_ctx['exit_dates']: dict[str, np.datetime64] = {}
         if self._config.exit_on_last_bar:
             for exec in self._executions:
                 for sym in exec.symbols:
-                    sym_dates = df[df[DataCol.SYMBOL.value] == sym][
+                    sym_dates = stack_ctx['df'][stack_ctx['df'][DataCol.SYMBOL.value] == sym][
                         DataCol.DATE.value
                     ].values
                     if len(sym_dates):
                         sym_dates.sort()
-                        exit_dates[sym] = sym_dates[-1]
+                        stack_ctx['exit_dates'][sym] = sym_dates[-1]
         for train_idx, test_idx in self.walkforward_split(
-            df=df,
+            df=stack_ctx['df'],
             windows=windows,
             lookahead=lookahead,
             train_size=train_size,
             shuffle=shuffle,
         ):
-            models: dict[ModelSymbol, TrainedModel] = {}
-            train_data = df.loc[train_idx]
-            test_data = df.loc[test_idx]
-            if not train_data.empty:
-                model_syms = {
+            stack_ctx['models']: dict[ModelSymbol, TrainedModel] = {}
+            stack_ctx['train_data'] = stack_ctx['df'].loc[train_idx]
+            stack_ctx['test_data'] = stack_ctx['df'].loc[test_idx]
+            if not stack_ctx['train_data'].empty:
+                stack_ctx['model_syms'] = {
                     ModelSymbol(model_name, sym)
-                    for sym in train_data[DataCol.SYMBOL.value].unique()
+                    for sym in stack_ctx['train_data'][DataCol.SYMBOL.value].unique()
                     for execution in self._executions
                     for model_name in execution.model_names
                     if sym in execution.symbols
                 }
-                train_dates = train_data[DataCol.DATE.value].unique()
-                train_dates.sort()
-                models = self.train_models(
-                    model_syms=model_syms,
-                    train_data=train_data,
-                    test_data=test_data,
-                    indicator_data=indicator_data,
+                stack_ctx['train_dates'] = stack_ctx['train_data'][DataCol.DATE.value].unique()
+                stack_ctx['train_dates'].sort()
+                stack_ctx['models'] = self.train_models(
+                    model_syms=stack_ctx['model_syms'],
+                    train_data=stack_ctx['train_data'],
+                    test_data=stack_ctx['test_data'],
+                    indicator_data=stack_ctx['indicator_data'],
                     cache_date_fields=CacheDateFields(
-                        start_date=to_datetime(train_dates[0]),
-                        end_date=to_datetime(train_dates[-1]),
-                        tf_seconds=tf_seconds,
+                        start_date=to_datetime(stack_ctx['train_dates'][0]),
+                        end_date=to_datetime(stack_ctx['train_dates'][-1]),
+                        tf_seconds=stack_ctx['tf_seconds'],
                         between_time=between_time,
-                        days=days,
+                        days=stack_ctx['day_ids'],
                     ),
                 )
-            if not train_only and not test_data.empty:
+            if not stack_ctx['train_only'] and not stack_ctx['test_data'].empty:
                 self.backtest_executions(
+                    stack_ctx=stack_ctx,
                     config=self._config,
                     executions=self._executions,
                     before_exec_fn=self._before_exec_fn,
                     after_exec_fn=self._after_exec_fn,
-                    sessions=sessions,
-                    models=models,
-                    indicator_data=indicator_data,
-                    test_data=test_data,
-                    portfolio=portfolio,
                     pos_size_handler=self._pos_size_handler,
-                    exit_dates=exit_dates,
                     slippage_model=self._slippage_model,
                     enable_fractional_shares=self._fractional_shares_enabled(),
                     warmup=warmup,
