@@ -201,6 +201,7 @@ class BacktestMixin:
         before_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
+        final_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]] = None,
         slippage_model: Optional[SlippageModel] = None,
         enable_fractional_shares: bool = False,
         warmup: Optional[int] = None,
@@ -214,20 +215,21 @@ class BacktestMixin:
             pos_size_handler=pos_size_handler
         )
         for i, date in enumerate(stack_ctx['test_dates']):
-            yield self._backtest_date(
-                    i=i, 
-                    date=date,
-                    stack_ctx=stack_ctx,
-                    config=config, 
-                    before_exec_fn=before_exec_fn, 
-                    after_exec_fn=after_exec_fn, 
-                    pos_size_handler=pos_size_handler, 
-                    slippage_model=slippage_model, 
-                    enable_fractional_shares=enable_fractional_shares, 
-                    warmup=warmup,
-                    include_results=include_results,
-                    results_stepwise=results_stepwise
-                )
+            final_exec_fn = yield self._backtest_date(
+                                i=i, 
+                                date=date,
+                                stack_ctx=stack_ctx,
+                                config=config, 
+                                before_exec_fn=before_exec_fn, 
+                                after_exec_fn=after_exec_fn,
+                                pos_size_handler=pos_size_handler, 
+                                final_exec_fn=final_exec_fn,
+                                slippage_model=slippage_model, 
+                                enable_fractional_shares=enable_fractional_shares, 
+                                warmup=warmup,
+                                include_results=include_results,
+                                results_stepwise=results_stepwise
+                            )
 
     def _backtest_init(
         self,
@@ -310,6 +312,7 @@ class BacktestMixin:
         before_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
+        final_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]] = None,
         slippage_model: Optional[SlippageModel] = None, 
         enable_fractional_shares: bool = False, 
         warmup: Optional[int] = None,
@@ -397,6 +400,8 @@ class BacktestMixin:
                 stack_ctx['exec_fns'][sym](ctx)
         if after_exec_fn is not None and stack_ctx['active_ctxs']:
             after_exec_fn(stack_ctx['active_ctxs'])
+        if final_exec_fn is not None and stack_ctx['active_ctxs']:
+            final_exec_fn(stack_ctx['active_ctxs'])
         for ctx in stack_ctx['active_ctxs'].values():
             if slippage_model and (ctx.buy_shares or ctx.sell_shares):
                 self._apply_slippage(slippage_model, ctx)
