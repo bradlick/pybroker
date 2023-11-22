@@ -83,6 +83,33 @@ def _between(
 def _sort_by_score(result: ExecResult) -> float:
     return 0.0 if result.score is None else result.score
 
+@dataclass(frozen=True)
+class TestResult:
+    """Contains the results of backtesting a :class:`.Strategy`.
+
+    Attributes:
+        start_date: Starting date of backtest.
+        end_date: Ending date of backtest.
+        portfolio: :class:`pandas.DataFrame` of
+            :class:`pybroker.portfolio.Portfolio` balances for every bar.
+        positions: :class:`pandas.DataFrame` of
+            :class:`pybroker.portfolio.Position` balances for every bar.
+        orders: :class:`pandas.DataFrame` of all orders that were placed.
+        trades: :class:`pandas.DataFrame` of all trades that were made.
+        metrics: Evaluation metrics.
+        metrics_df: :class:`pandas.DataFrame` of evaluation metrics.
+        bootstrap: Randomized bootstrap evaluation metrics.
+    """
+
+    start_date: datetime
+    end_date: datetime
+    portfolio: pd.DataFrame
+    positions: pd.DataFrame
+    orders: pd.DataFrame
+    trades: pd.DataFrame
+    metrics: EvalMetrics
+    metrics_df: pd.DataFrame
+    bootstrap: Optional[BootstrapResult]
 
 class Execution(NamedTuple):
     r"""Represents an execution of a :class:`.Strategy`. Holds a reference to
@@ -148,6 +175,38 @@ class BacktestMixin:
         Returns:
             :class:`.TestResult` of the backtest.
         """
+        backtest_stepper = self.backtest_executions_stepwise(
+                                stack_ctx=stack_ctx,
+                                config=config,
+                                executions=executions,
+                                before_exec_fn=before_exec_fn,
+                                after_exec_fn=after_exec_fn,
+                                pos_size_handler=pos_size_handler,
+                                slippage_model=slippage_model,
+                                enable_fractional_shares=enable_fractional_shares,
+                                warmup=warmup
+                            )
+        try:
+            while True:
+                next(backtest_stepper)
+        except StopIteration:
+            pass
+                
+
+    def backtest_executions_stepwise(
+        self,
+        stack_ctx: dict,
+        config: StrategyConfig,
+        executions: set[Execution],
+        before_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
+        after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
+        pos_size_handler: Optional[Callable[[PosSizeContext], None]],
+        slippage_model: Optional[SlippageModel] = None,
+        enable_fractional_shares: bool = False,
+        warmup: Optional[int] = None,
+        include_results: bool = False,
+        results_stepwise: bool = False
+    ) -> Optional[TestResult]:
         self._backtest_init(
             stack_ctx=stack_ctx,
             config=config, 
@@ -155,18 +214,20 @@ class BacktestMixin:
             pos_size_handler=pos_size_handler
         )
         for i, date in enumerate(stack_ctx['test_dates']):
-            self._backtest_date(
-                i=i, 
-                date=date,
-                stack_ctx=stack_ctx,
-                config=config, 
-                before_exec_fn=before_exec_fn, 
-                after_exec_fn=after_exec_fn, 
-                pos_size_handler=pos_size_handler, 
-                slippage_model=slippage_model, 
-                enable_fractional_shares=enable_fractional_shares, 
-                warmup=warmup
-            )
+            yield self._backtest_date(
+                    i=i, 
+                    date=date,
+                    stack_ctx=stack_ctx,
+                    config=config, 
+                    before_exec_fn=before_exec_fn, 
+                    after_exec_fn=after_exec_fn, 
+                    pos_size_handler=pos_size_handler, 
+                    slippage_model=slippage_model, 
+                    enable_fractional_shares=enable_fractional_shares, 
+                    warmup=warmup,
+                    include_results=include_results,
+                    results_stepwise=results_stepwise
+                )
 
     def _backtest_init(
         self,
@@ -251,8 +312,10 @@ class BacktestMixin:
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
         slippage_model: Optional[SlippageModel] = None, 
         enable_fractional_shares: bool = False, 
-        warmup: Optional[int] = None
-    ):
+        warmup: Optional[int] = None,
+        include_results: bool = False,
+        results_stepwise: bool = False
+    ) -> Optional[TestResult]:
         stack_ctx['active_ctxs'].clear()
         for sym, ctx in stack_ctx['exec_ctxs'].items():
             if date not in stack_ctx['sym_exec_dates'][sym]:
@@ -387,8 +450,20 @@ class BacktestMixin:
                     price_scope=stack_ctx['price_scope'],
                 )
         stack_ctx['portfolio'].incr_bars()
-        if i % 10 == 0 or i == stack_ctx['num_dates'] - 1:
+        is_last_date = i == stack_ctx['num_dates'] - 1
+        if i % 10 == 0 or is_last_date:
             stack_ctx['logger'].backtest_executions_loading(i + 1)
+        
+        result = None
+        is_train_only = 'train_only' in stack_ctx and stack_ctx['train_only']
+        if not is_train_only and include_results and (results_stepwise or is_last_date):
+            result = self._to_test_result(
+                        start_date=stack_ctx['start_dt'], 
+                        end_date=stack_ctx['end_dt'], 
+                        portfolio=stack_ctx['portfolio'], 
+                        calc_bootstrap=stack_ctx['calc_bootstrap']
+                    )
+        return result
 
     def _apply_slippage(
         self,
@@ -616,6 +691,87 @@ class BacktestMixin:
             return to_decimal(shares)
         else:
             return to_decimal(int(shares))
+    
+    def _to_test_result(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        portfolio: Portfolio,
+        calc_bootstrap: bool,
+    ) -> TestResult:
+        pos_df = pd.DataFrame.from_records(
+            portfolio.position_bars, columns=PositionBar._fields
+        )
+        for col in (
+            "close",
+            "equity",
+            "market_value",
+            "margin",
+            "unrealized_pnl",
+        ):
+            pos_df[col] = quantize(pos_df, col)
+        pos_df.set_index(["symbol", "date"], inplace=True)
+        portfolio_df = pd.DataFrame.from_records(
+            portfolio.bars, columns=PortfolioBar._fields, index="date"
+        )
+        for col in (
+            "cash",
+            "equity",
+            "margin",
+            "market_value",
+            "pnl",
+            "unrealized_pnl",
+            "fees",
+        ):
+            portfolio_df[col] = quantize(portfolio_df, col)
+        orders_df = pd.DataFrame.from_records(
+            portfolio.orders, columns=Order._fields, index="id"
+        )
+        for col in ("limit_price", "fill_price", "fees"):
+            orders_df[col] = quantize(orders_df, col)
+        trades_df = pd.DataFrame.from_records(
+            portfolio.trades, columns=Trade._fields, index="id"
+        )
+        trades_df["bars"] = trades_df["bars"].astype(int)
+        for col in (
+            "entry",
+            "exit",
+            "pnl",
+            "return_pct",
+            "agg_pnl",
+            "pnl_per_bar",
+        ):
+            trades_df[col] = quantize(trades_df, col)
+        shares_type = float if self._fractional_shares_enabled() else int
+        pos_df["long_shares"] = pos_df["long_shares"].astype(shares_type)
+        pos_df["short_shares"] = pos_df["short_shares"].astype(shares_type)
+        orders_df["shares"] = orders_df["shares"].astype(shares_type)
+        trades_df["shares"] = trades_df["shares"].astype(shares_type)
+        eval_result = self.evaluate(
+            portfolio_df=portfolio_df,
+            trades_df=trades_df,
+            calc_bootstrap=calc_bootstrap,
+            bootstrap_sample_size=self._config.bootstrap_sample_size,
+            bootstrap_samples=self._config.bootstrap_samples,
+            bars_per_year=self._config.bars_per_year,
+        )
+        metrics = [
+            (k, v)
+            for k, v in dataclasses.asdict(eval_result.metrics).items()
+            if v is not None
+        ]
+        metrics_df = pd.DataFrame(metrics, columns=["name", "value"])
+        return TestResult(
+            start_date=start_date,
+            end_date=end_date,
+            portfolio=portfolio_df,
+            positions=pos_df,
+            orders=orders_df,
+            trades=trades_df,
+            metrics=eval_result.metrics,
+            metrics_df=metrics_df,
+            bootstrap=eval_result.bootstrap,
+        )
 
 
 class WalkforwardWindow(NamedTuple):
@@ -776,36 +932,6 @@ class WalkforwardMixin:
                 if shuffle:
                     np.random.shuffle(train_idx)
                 yield WalkforwardWindow(train_idx, test_idx)
-
-
-@dataclass(frozen=True)
-class TestResult:
-    """Contains the results of backtesting a :class:`.Strategy`.
-
-    Attributes:
-        start_date: Starting date of backtest.
-        end_date: Ending date of backtest.
-        portfolio: :class:`pandas.DataFrame` of
-            :class:`pybroker.portfolio.Portfolio` balances for every bar.
-        positions: :class:`pandas.DataFrame` of
-            :class:`pybroker.portfolio.Position` balances for every bar.
-        orders: :class:`pandas.DataFrame` of all orders that were placed.
-        trades: :class:`pandas.DataFrame` of all trades that were made.
-        metrics: Evaluation metrics.
-        metrics_df: :class:`pandas.DataFrame` of evaluation metrics.
-        bootstrap: Randomized bootstrap evaluation metrics.
-    """
-
-    start_date: datetime
-    end_date: datetime
-    portfolio: pd.DataFrame
-    positions: pd.DataFrame
-    orders: pd.DataFrame
-    trades: pd.DataFrame
-    metrics: EvalMetrics
-    metrics_df: pd.DataFrame
-    bootstrap: Optional[BootstrapResult]
-
 
 class Strategy(
     BacktestMixin,
@@ -1181,41 +1307,80 @@ class Strategy(
             :class:`.TestResult` containing portfolio balances, order
             history, and evaluation metrics.
         """
+        walkforward_stepper = self.walkforward_stepwise(
+                                    windows=windows,
+                                    lookahead=lookahead,
+                                    start_date=start_date,
+                                    end_date=end_date,
+                                    timeframe=timeframe,
+                                    between_time=between_time,
+                                    days=days,
+                                    train_size=train_size,
+                                    shuffle=shuffle,
+                                    calc_bootstrap=calc_bootstrap,
+                                    disable_parallel=disable_parallel,
+                                    warmup=warmup
+                                )
+        test_result = None
+        try:
+            while True:
+                test_result = next(walkforward_stepper)
+        except StopIteration:
+            pass
+        return test_result
+
+    def walkforward_stepwise(
+        self,
+        windows: int,
+        lookahead: int = 1,
+        start_date: Optional[Union[str, datetime]] = None,
+        end_date: Optional[Union[str, datetime]] = None,
+        timeframe: str = "",
+        between_time: Optional[tuple[str, str]] = None,
+        days: Optional[Union[str, Day, Iterable[Union[str, Day]]]] = None,
+        train_size: float = 0.5,
+        shuffle: bool = False,
+        calc_bootstrap: bool = False,
+        disable_parallel: bool = False,
+        warmup: Optional[int] = None,
+        results_stepwise: bool = False
+    ) -> Optional[TestResult]:
         if warmup is not None and warmup < 1:
             raise ValueError("warmup must be > 0.")
         stack_ctx = {}
+        stack_ctx['calc_bootstrap'] = calc_bootstrap
         scope = StaticScope.instance()
         try:
             scope.freeze_data_cols()
             if not self._executions:
                 raise ValueError("No executions were added.")
-            start_dt = (
+            stack_ctx['start_dt'] = (
                 self._start_date
                 if start_date is None
                 else to_datetime(start_date)
             )
-            if start_dt < self._start_date or start_dt > self._end_date:
+            if stack_ctx['start_dt'] < self._start_date or stack_ctx['start_dt'] > self._end_date:
                 raise ValueError(
                     f"start_date must be between {self._start_date} and "
                     f"{self._end_date}."
                 )
-            end_dt = (
+            stack_ctx['end_dt'] = (
                 self._end_date if end_date is None else to_datetime(end_date)
             )
-            if end_dt < self._start_date or end_dt > self._end_date:
+            if stack_ctx['end_dt'] < self._start_date or stack_ctx['end_dt'] > self._end_date:
                 raise ValueError(
                     f"end_date must be between {self._start_date} and "
                     f"{self._end_date}."
                 )
-            if start_dt is not None and end_dt is not None:
-                verify_date_range(start_dt, end_dt)
-            self._logger.walkforward_start(start_dt, end_dt)
+            if stack_ctx['start_dt'] is not None and stack_ctx['end_dt'] is not None:
+                verify_date_range(stack_ctx['start_dt'], stack_ctx['end_dt'])
+            self._logger.walkforward_start(stack_ctx['start_dt'], stack_ctx['end_dt'])
             stack_ctx['df'] = self._fetch_data(timeframe)
             stack_ctx['day_ids'] = self._to_day_ids(days)
             stack_ctx['df'] = self._filter_dates(
                 df=stack_ctx['df'],
-                start_date=start_dt,
-                end_date=end_dt,
+                start_date=stack_ctx['start_dt'],
+                end_date=stack_ctx['end_dt'],
                 between_time=between_time,
                 days=stack_ctx['day_ids'],
             )
@@ -1223,8 +1388,8 @@ class Strategy(
             stack_ctx['indicator_data'] = self._fetch_indicators(
                 df=stack_ctx['df'],
                 cache_date_fields=CacheDateFields(
-                    start_date=start_dt,
-                    end_date=end_dt,
+                    start_date=stack_ctx['start_dt'],
+                    end_date=stack_ctx['end_dt'],
                     tf_seconds=stack_ctx['tf_seconds'],
                     between_time=between_time,
                     days=stack_ctx['day_ids'],
@@ -1244,26 +1409,16 @@ class Strategy(
                 self._config.max_long_positions,
                 self._config.max_short_positions,
             )
-            self._run_walkforward(
-                stack_ctx=stack_ctx,
-                between_time=between_time,
-                windows=windows,
-                lookahead=lookahead,
-                train_size=train_size,
-                shuffle=shuffle,
-                warmup=warmup,
-            )
-            if stack_ctx['train_only']:
-                result = None
-            else:
-                result = self._to_test_result(
-                            start_date=start_dt, 
-                            end_date=end_dt, 
-                            portfolio=stack_ctx['portfolio'], 
-                            calc_bootstrap=calc_bootstrap
+            yield from self._run_walkforward_stepwise(
+                            stack_ctx=stack_ctx,
+                            between_time=between_time,
+                            windows=windows,
+                            lookahead=lookahead,
+                            train_size=train_size,
+                            shuffle=shuffle,
+                            warmup=warmup,
+                            results_stepwise=results_stepwise
                         )
-            self._logger.walkforward_completed()
-            return result
         finally:
             scope.unfreeze_data_cols()
 
@@ -1289,7 +1444,7 @@ class Strategy(
             self._data_source, AlpacaCrypto
         )
 
-    def _run_walkforward(
+    def _run_walkforward_stepwise(
         self,
         stack_ctx: dict,
         between_time: Optional[tuple[str, str]],
@@ -1298,7 +1453,8 @@ class Strategy(
         train_size: float,
         shuffle: bool,
         warmup: Optional[int],
-    ):
+        results_stepwise: bool = False,
+    ) -> Optional[TestResult]:
         stack_ctx['sessions']: dict[str, dict] = defaultdict(dict)
         stack_ctx['exit_dates']: dict[str, np.datetime64] = {}
         if self._config.exit_on_last_bar:
@@ -1344,17 +1500,19 @@ class Strategy(
                     ),
                 )
             if not stack_ctx['train_only'] and not stack_ctx['test_data'].empty:
-                self.backtest_executions(
-                    stack_ctx=stack_ctx,
-                    config=self._config,
-                    executions=self._executions,
-                    before_exec_fn=self._before_exec_fn,
-                    after_exec_fn=self._after_exec_fn,
-                    pos_size_handler=self._pos_size_handler,
-                    slippage_model=self._slippage_model,
-                    enable_fractional_shares=self._fractional_shares_enabled(),
-                    warmup=warmup,
-                )
+                yield from self.backtest_executions_stepwise(
+                                stack_ctx=stack_ctx,
+                                config=self._config,
+                                executions=self._executions,
+                                before_exec_fn=self._before_exec_fn,
+                                after_exec_fn=self._after_exec_fn,
+                                pos_size_handler=self._pos_size_handler,
+                                slippage_model=self._slippage_model,
+                                enable_fractional_shares=self._fractional_shares_enabled(),
+                                warmup=warmup,
+                                include_results=True,
+                                results_stepwise=results_stepwise
+                            )
 
     def _filter_dates(
         self,
@@ -1424,84 +1582,3 @@ class Strategy(
         if df.empty:
             raise ValueError("DataSource is empty.")
         return df.reset_index(drop=True)
-
-    def _to_test_result(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        portfolio: Portfolio,
-        calc_bootstrap: bool,
-    ) -> TestResult:
-        pos_df = pd.DataFrame.from_records(
-            portfolio.position_bars, columns=PositionBar._fields
-        )
-        for col in (
-            "close",
-            "equity",
-            "market_value",
-            "margin",
-            "unrealized_pnl",
-        ):
-            pos_df[col] = quantize(pos_df, col)
-        pos_df.set_index(["symbol", "date"], inplace=True)
-        portfolio_df = pd.DataFrame.from_records(
-            portfolio.bars, columns=PortfolioBar._fields, index="date"
-        )
-        for col in (
-            "cash",
-            "equity",
-            "margin",
-            "market_value",
-            "pnl",
-            "unrealized_pnl",
-            "fees",
-        ):
-            portfolio_df[col] = quantize(portfolio_df, col)
-        orders_df = pd.DataFrame.from_records(
-            portfolio.orders, columns=Order._fields, index="id"
-        )
-        for col in ("limit_price", "fill_price", "fees"):
-            orders_df[col] = quantize(orders_df, col)
-        trades_df = pd.DataFrame.from_records(
-            portfolio.trades, columns=Trade._fields, index="id"
-        )
-        trades_df["bars"] = trades_df["bars"].astype(int)
-        for col in (
-            "entry",
-            "exit",
-            "pnl",
-            "return_pct",
-            "agg_pnl",
-            "pnl_per_bar",
-        ):
-            trades_df[col] = quantize(trades_df, col)
-        shares_type = float if self._fractional_shares_enabled() else int
-        pos_df["long_shares"] = pos_df["long_shares"].astype(shares_type)
-        pos_df["short_shares"] = pos_df["short_shares"].astype(shares_type)
-        orders_df["shares"] = orders_df["shares"].astype(shares_type)
-        trades_df["shares"] = trades_df["shares"].astype(shares_type)
-        eval_result = self.evaluate(
-            portfolio_df=portfolio_df,
-            trades_df=trades_df,
-            calc_bootstrap=calc_bootstrap,
-            bootstrap_sample_size=self._config.bootstrap_sample_size,
-            bootstrap_samples=self._config.bootstrap_samples,
-            bars_per_year=self._config.bars_per_year,
-        )
-        metrics = [
-            (k, v)
-            for k, v in dataclasses.asdict(eval_result.metrics).items()
-            if v is not None
-        ]
-        metrics_df = pd.DataFrame(metrics, columns=["name", "value"])
-        return TestResult(
-            start_date=start_date,
-            end_date=end_date,
-            portfolio=portfolio_df,
-            positions=pos_df,
-            orders=orders_df,
-            trades=trades_df,
-            metrics=eval_result.metrics,
-            metrics_df=metrics_df,
-            bootstrap=eval_result.bootstrap,
-        )
