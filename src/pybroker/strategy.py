@@ -312,7 +312,7 @@ class BacktestMixin:
         before_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
-        final_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]] = None,
+        final_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         slippage_model: Optional[SlippageModel] = None, 
         enable_fractional_shares: bool = False, 
         warmup: Optional[int] = None,
