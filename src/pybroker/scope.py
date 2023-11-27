@@ -21,7 +21,6 @@ from pybroker.common import (
 )
 from pybroker.log import Logger
 from collections import defaultdict
-from decimal import Decimal
 from diskcache import Cache
 from numpy.typing import NDArray
 from typing import (
@@ -525,11 +524,11 @@ class PriceScope:
             int,
             float,
             np.floating,
-            Decimal,
+            float,
             PriceType,
-            Callable[[str, BarData], Union[int, float, Decimal]],
+            Callable[[str, BarData], Union[int, float, float]],
         ],
-    ) -> Decimal:
+    ) -> float:
         end_index = self._sym_end_index[symbol]
         price_type = type(price)
         if price_type == PriceType:
@@ -607,7 +606,7 @@ class PriceScope:
             price_type == float
             or price_type == int
             or isinstance(price, np.floating)
-            or isinstance(price, Decimal)
+            or isinstance(price, float)
         ):
             return to_decimal(price)  # type: ignore[arg-type]
         elif callable(price):
@@ -638,15 +637,15 @@ class PendingOrder(NamedTuple):
     symbol: str
     created: np.datetime64
     exec_date: np.datetime64
-    shares: Decimal
-    limit_price: Optional[Decimal]
+    shares: float
+    limit_price: Optional[float]
     fill_price: Union[
         int,
         float,
         np.floating,
-        Decimal,
+        float,
         PriceType,
-        Callable[[str, BarData], Union[int, float, Decimal]],
+        Callable[[str, BarData], Union[int, float, float]],
     ]
 
 
@@ -671,15 +670,15 @@ class PendingOrderScope:
         symbol: str,
         created: np.datetime64,
         exec_date: np.datetime64,
-        shares: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        limit_price: Optional[float],
         fill_price: Union[
             int,
             float,
             np.floating,
-            Decimal,
+            float,
             PriceType,
-            Callable[[str, BarData], Union[int, float, Decimal]],
+            Callable[[str, BarData], Union[int, float, float]],
         ],
     ) -> int:
         """Creates a :class:`.PendingOrder`.

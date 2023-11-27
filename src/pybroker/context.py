@@ -33,7 +33,6 @@ from pybroker.scope import (
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
 from numpy.typing import NDArray
 from typing import (
     Any,
@@ -77,28 +76,28 @@ class BaseContext:
         self._pending_order_scope = pending_order_scope
 
     @property
-    def total_equity(self) -> Decimal:
+    def total_equity(self) -> float:
         """Total equity currently held in the
         :class:`pybroker.portfolio.Portfolio`.
         """
         return self._portfolio.equity
 
     @property
-    def cash(self) -> Decimal:
+    def cash(self) -> float:
         """Total cash currently held in the
         :class:`pybroker.portfolio.Portfolio`.
         """
         return self._portfolio.cash
 
     @property
-    def total_margin(self) -> Decimal:
+    def total_margin(self) -> float:
         """Total amount of margin currently held in the
         :class:`pybroker.portfolio.Portfolio`.
         """
         return self._portfolio.margin
 
     @property
-    def total_market_value(self) -> Decimal:
+    def total_market_value(self) -> float:
         """Total market value currently held in the
         :class:`pybroker.portfolio.Portfolio`. The market value is defined as
         the amount of equity held in cash and long positions added together
@@ -107,12 +106,12 @@ class BaseContext:
         return self._portfolio.market_value
 
     @property
-    def win_rate(self) -> Decimal:
+    def win_rate(self) -> float:
         """Running win rate of trades."""
         return self._portfolio.win_rate
 
     @property
-    def loss_rate(self) -> Decimal:
+    def loss_rate(self) -> float:
         """Running loss rate of trades."""
         return self._portfolio.loss_rate
 
@@ -361,24 +360,24 @@ class ExecResult:
         int,
         float,
         np.floating,
-        Decimal,
+        float,
         PriceType,
-        Callable[[str, BarData], Union[int, float, Decimal]],
+        Callable[[str, BarData], Union[int, float, float]],
     ]
     sell_fill_price: Union[
         int,
         float,
         np.floating,
-        Decimal,
+        float,
         PriceType,
-        Callable[[str, BarData], Union[int, float, Decimal]],
+        Callable[[str, BarData], Union[int, float, float]],
     ]
     score: Optional[float]
     hold_bars: Optional[int]
-    buy_shares: Optional[Decimal]
-    buy_limit_price: Optional[Decimal]
-    sell_shares: Optional[Decimal]
-    sell_limit_price: Optional[Decimal]
+    buy_shares: Optional[float]
+    buy_limit_price: Optional[float]
+    sell_shares: Optional[float]
+    sell_limit_price: Optional[float]
     long_stops: Optional[frozenset[Stop]]
     short_stops: Optional[frozenset[Stop]]
     cover: bool = field(default=False)
@@ -401,7 +400,7 @@ class ExecSignal(NamedTuple):
 
     id: int
     symbol: str
-    shares: Union[int, float, Decimal]
+    shares: Union[int, float, float]
     score: Optional[float]
     bar_data: BarData
     type: Literal["buy", "sell"]
@@ -441,7 +440,7 @@ class PosSizeContext(BaseContext):
             sym_end_index=sym_end_index,
         )
         self.sessions = sessions
-        self._signal_shares: dict[int, Union[int, float, Decimal]] = {}
+        self._signal_shares: dict[int, Union[int, float, float]] = {}
         self._buy_results: Optional[list[ExecResult]] = None
         self._sell_results: Optional[list[ExecResult]] = None
         self._max_long_positions = config.max_long_positions
@@ -505,7 +504,7 @@ class PosSizeContext(BaseContext):
                     break
 
     def set_shares(
-        self, signal: ExecSignal, shares: Union[int, float, Decimal]
+        self, signal: ExecSignal, shares: Union[int, float, float]
     ):
         """Sets the number of shares of an order for the buy or sell signal."""
         self._signal_shares[signal.id] = shares
@@ -632,40 +631,40 @@ class ExecContext(BaseContext):
                 int,
                 float,
                 np.floating,
-                Decimal,
+                float,
                 PriceType,
-                Callable[[str, BarData], Union[int, float, Decimal]],
+                Callable[[str, BarData], Union[int, float, float]],
             ]
         ] = None
-        self.buy_shares: Optional[Union[int, float, Decimal]] = None
-        self.buy_limit_price: Optional[Union[int, float, Decimal]] = None
+        self.buy_shares: Optional[Union[int, float, float]] = None
+        self.buy_limit_price: Optional[Union[int, float, float]] = None
         self.sell_fill_price: Optional[
             Union[
                 int,
                 float,
                 np.floating,
-                Decimal,
+                float,
                 PriceType,
-                Callable[[str, BarData], Union[int, float, Decimal]],
+                Callable[[str, BarData], Union[int, float, float]],
             ]
         ] = None
-        self.sell_shares: Optional[Union[int, float, Decimal]] = None
-        self.sell_limit_price: Optional[Union[int, float, Decimal]] = None
+        self.sell_shares: Optional[Union[int, float, float]] = None
+        self.sell_limit_price: Optional[Union[int, float, float]] = None
         self.hold_bars: Optional[int] = None
         self.score: Optional[float] = None
         self.session = session
 
-        self.stop_loss: Optional[Union[int, float, Decimal]] = None
-        self.stop_loss_pct: Optional[Union[int, float, Decimal]] = None
-        self.stop_loss_limit: Optional[Union[int, float, Decimal]] = None
+        self.stop_loss: Optional[Union[int, float, float]] = None
+        self.stop_loss_pct: Optional[Union[int, float, float]] = None
+        self.stop_loss_limit: Optional[Union[int, float, float]] = None
         self.stop_loss_exit_price: Optional[PriceType] = None
-        self.stop_profit: Optional[Union[int, float, Decimal]] = None
-        self.stop_profit_pct: Optional[Union[int, float, Decimal]] = None
-        self.stop_profit_limit: Optional[Union[int, float, Decimal]] = None
+        self.stop_profit: Optional[Union[int, float, float]] = None
+        self.stop_profit_pct: Optional[Union[int, float, float]] = None
+        self.stop_profit_limit: Optional[Union[int, float, float]] = None
         self.stop_profit_exit_price: Optional[PriceType] = None
-        self.stop_trailing: Optional[Union[int, float, Decimal]] = None
-        self.stop_trailing_pct: Optional[Union[int, float, Decimal]] = None
-        self.stop_trailing_limit: Optional[Union[int, float, Decimal]] = None
+        self.stop_trailing: Optional[Union[int, float, float]] = None
+        self.stop_trailing_pct: Optional[Union[int, float, float]] = None
+        self.stop_trailing_limit: Optional[Union[int, float, float]] = None
         self.stop_trailing_exit_price: Optional[PriceType] = None
 
         self._cover: bool = False
@@ -766,9 +765,9 @@ class ExecContext(BaseContext):
             int,
             float,
             np.floating,
-            Decimal,
+            float,
             PriceType,
-            Callable[[str, BarData], Union[int, float, Decimal]],
+            Callable[[str, BarData], Union[int, float, float]],
         ]
     ]:
         """Alias for :attr:`.buy_fill_price`. When set, this causes the buy
@@ -784,9 +783,9 @@ class ExecContext(BaseContext):
                 int,
                 float,
                 np.floating,
-                Decimal,
+                float,
                 PriceType,
-                Callable[[str, BarData], Union[int, float, Decimal]],
+                Callable[[str, BarData], Union[int, float, float]],
             ]
         ],
     ):
@@ -794,19 +793,19 @@ class ExecContext(BaseContext):
         self._cover = True
 
     @property
-    def cover_shares(self) -> Optional[Union[int, float, Decimal]]:
+    def cover_shares(self) -> Optional[Union[int, float, float]]:
         """Alias for :attr:`.buy_shares`. When set, this causes the buy
         order to be placed before any sell orders.
         """
         return self.buy_shares
 
     @cover_shares.setter
-    def cover_shares(self, shares: Optional[Union[int, float, Decimal]]):
+    def cover_shares(self, shares: Optional[Union[int, float, float]]):
         self.buy_shares = shares
         self._cover = True
 
     @property
-    def cover_limit_price(self) -> Optional[Union[int, float, Decimal]]:
+    def cover_limit_price(self) -> Optional[Union[int, float, float]]:
         """Alias for :attr:`.buy_limit_price`. When set, this causes the buy
         order to be placed before any sell orders.
         """
@@ -814,7 +813,7 @@ class ExecContext(BaseContext):
 
     @cover_limit_price.setter
     def cover_limit_price(
-        self, limit_price: Optional[Union[int, float, Decimal]]
+        self, limit_price: Optional[Union[int, float, float]]
     ):
         self.buy_limit_price = limit_price
         self._cover = True
@@ -1032,20 +1031,20 @@ class ExecContext(BaseContext):
         self,
         stop_type: StopType,
         pos_type: Literal["long", "short"],
-        points: Optional[Union[int, float, Decimal]],
-        percent: Optional[Union[int, float, Decimal]],
+        points: Optional[Union[int, float, float]],
+        percent: Optional[Union[int, float, float]],
         bars: Optional[int],
         fill_price: Optional[
             Union[
                 int,
                 float,
                 np.floating,
-                Decimal,
+                float,
                 PriceType,
-                Callable[[str, BarData], Union[int, float, Decimal]],
+                Callable[[str, BarData], Union[int, float, float]],
             ]
         ],
-        limit_price: Optional[Union[int, float, Decimal]],
+        limit_price: Optional[Union[int, float, float]],
         exit_price: Optional[PriceType],
     ):
         percent_dec, points_dec, limit_price_dec = None, None, None

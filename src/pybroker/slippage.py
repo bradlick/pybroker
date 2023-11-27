@@ -9,7 +9,6 @@ This code is licensed under Apache 2.0 with Commons Clause license
 import random
 from pybroker.context import ExecContext
 from abc import ABC, abstractmethod
-from decimal import Decimal
 from typing import Optional
 
 
@@ -20,8 +19,8 @@ class SlippageModel(ABC):
     def apply_slippage(
         self,
         ctx: ExecContext,
-        buy_shares: Optional[Decimal] = None,
-        sell_shares: Optional[Decimal] = None,
+        buy_shares: Optional[float] = None,
+        sell_shares: Optional[float] = None,
     ):
         """Applies slippage to ``ctx``."""
 
@@ -47,11 +46,11 @@ class RandomSlippageModel(SlippageModel):
     def apply_slippage(
         self,
         ctx: ExecContext,
-        buy_shares: Optional[Decimal] = None,
-        sell_shares: Optional[Decimal] = None,
+        buy_shares: Optional[float] = None,
+        sell_shares: Optional[float] = None,
     ):
         if buy_shares or sell_shares:
-            slippage_pct = Decimal(random.uniform(self.min_pct, self.max_pct))
+            slippage_pct = float(random.uniform(self.min_pct, self.max_pct))
             if buy_shares:
                 ctx.buy_shares = buy_shares - slippage_pct * buy_shares
             if sell_shares:

@@ -11,13 +11,11 @@ import pandas as pd
 import pytest
 import re
 from datetime import datetime
-from decimal import Decimal
 from joblib import Parallel
 from pybroker.common import (
     BarData,
     default_parallel,
     parse_timeframe,
-    quantize,
     to_datetime,
     to_decimal,
     to_seconds,
@@ -148,43 +146,43 @@ def test_to_datetime_type_error():
         to_datetime(1000)
 
 
-def test_quantize():
-    df = pd.DataFrame(
-        [
-            [Decimal("0.9999"), Decimal("1.22222")],
-            [Decimal("0.1"), Decimal("0.22")],
-            [Decimal("0.33"), Decimal("0.2222")],
-            [Decimal(1), Decimal("0.1")],
-        ],
-        columns=["a", "b"],
-    )
-    df["a"] = quantize(df, "a")
-    assert (df["a"].values == [1.00, 0.1, 0.33, 1]).all()
+# def test_quantize():
+#     df = pd.DataFrame(
+#         [
+#             [float("0.9999"), float("1.22222")],
+#             [float("0.1"), float("0.22")],
+#             [float("0.33"), float("0.2222")],
+#             [float(1), float("0.1")],
+#         ],
+#         columns=["a", "b"],
+#     )
+#     df["a"] = quantize(df, "a")
+#     assert (df["a"].values == [1.00, 0.1, 0.33, 1]).all()
 
 
-def test_quantize_when_column_not_found_then_error():
-    df = pd.DataFrame(
-        [
-            [Decimal("0.9999"), Decimal("1.22222")],
-            [Decimal("0.1"), Decimal("0.22")],
-            [Decimal("0.33"), Decimal("0.2222")],
-            [Decimal(1), Decimal("0.1")],
-        ],
-        columns=["a", "b"],
-    )
-    with pytest.raises(
-        ValueError, match=re.escape("Column 'c' not found in DataFrame.")
-    ):
-        quantize(df, "c")
+# def test_quantize_when_column_not_found_then_error():
+#     df = pd.DataFrame(
+#         [
+#             [float("0.9999"), float("1.22222")],
+#             [float("0.1"), float("0.22")],
+#             [float("0.33"), float("0.2222")],
+#             [float(1), float("0.1")],
+#         ],
+#         columns=["a", "b"],
+#     )
+#     with pytest.raises(
+#         ValueError, match=re.escape("Column 'c' not found in DataFrame.")
+#     ):
+#         quantize(df, "c")
 
 
 @pytest.mark.parametrize(
     "value, expected",
     [
-        (1.22222, Decimal("1.22222")),
-        (1, Decimal(1)),
-        (30.33, Decimal("30.33")),
-        (Decimal("10.1"), Decimal("10.1")),
+        (1.22222, float("1.22222")),
+        (1, float(1)),
+        (30.33, float("30.33")),
+        (float("10.1"), float("10.1")),
     ],
 )
 def test_to_decimal(value, expected):

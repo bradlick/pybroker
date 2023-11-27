@@ -15,7 +15,6 @@ import re
 from .fixtures import *
 from collections import defaultdict, deque
 from datetime import datetime
-from decimal import Decimal
 from pybroker.common import DataCol, PriceType, to_datetime
 from pybroker.config import StrategyConfig
 from pybroker.context import ExecContext
@@ -205,7 +204,7 @@ class TestBacktestMixin:
             assert kwargs["date"] == date
             assert kwargs["symbol"] == "SPY"
             assert kwargs["shares"] == expected_buy_shares
-            assert kwargs["fill_price"] == Decimal(
+            assert kwargs["fill_price"] == float(
                 str(buy_df[buy_df["date"] == date]["close"].values[0])
             )
             assert kwargs["limit_price"] == 100
@@ -217,7 +216,7 @@ class TestBacktestMixin:
             assert kwargs["date"] == date
             assert kwargs["symbol"] == "AAPL"
             assert kwargs["shares"] == expected_sell_shares
-            assert kwargs["fill_price"] == Decimal(
+            assert kwargs["fill_price"] == float(
                 str(sell_df[sell_df["date"] == date]["close"].values[0])
             )
             assert kwargs["limit_price"] == 50.5
@@ -321,7 +320,7 @@ class TestBacktestMixin:
             assert kwargs["date"] == date
             assert kwargs["symbol"] == "SPY"
             assert kwargs["shares"] == 200
-            assert kwargs["fill_price"] == Decimal(
+            assert kwargs["fill_price"] == float(
                 str(buy_df[buy_df["date"] == date]["close"].values[0])
             )
             assert kwargs["limit_price"] == 100
@@ -358,7 +357,7 @@ class TestBacktestMixin:
             assert kwargs["date"] == date
             assert kwargs["symbol"] == "AAPL"
             assert kwargs["shares"] == 100
-            assert kwargs["fill_price"] == Decimal(
+            assert kwargs["fill_price"] == float(
                 str(sell_df[sell_df["date"] == date]["close"].values[0])
             )
             assert kwargs["limit_price"] == 50.5
@@ -565,7 +564,7 @@ class TestBacktestMixin:
             assert kwargs["date"] == date
             assert kwargs["symbol"] == sym
             assert kwargs["shares"] == 200
-            assert kwargs["fill_price"] == Decimal(
+            assert kwargs["fill_price"] == float(
                 str(
                     df[(df["date"] == date) & (df["symbol"] == sym)][
                         "close"
@@ -610,7 +609,7 @@ class TestBacktestMixin:
             assert kwargs["date"] == date
             assert kwargs["symbol"] == sym
             assert kwargs["shares"] == 200
-            assert kwargs["fill_price"] == Decimal(
+            assert kwargs["fill_price"] == float(
                 str(
                     df[(df["date"] == date) & (df["symbol"] == sym)][
                         "close"
@@ -713,7 +712,7 @@ class TestBacktestMixin:
         "price_type, expected_fill_price",
         [
             (50, 50),
-            (Decimal(111.1), Decimal(111.1)),
+            (float(111.1), float(111.1)),
             (lambda _symbol, _bar_data: 60, 60),
             (PriceType.OPEN, 200),
             (PriceType.HIGH, 400),
@@ -1480,13 +1479,13 @@ class TestStrategy:
             (
                 PortfolioBar(
                     date=np.datetime64(START_DATE),
-                    cash=Decimal(100_000),
-                    equity=Decimal(100_000),
-                    margin=Decimal(),
-                    market_value=Decimal(100_000),
-                    pnl=Decimal(1000),
-                    unrealized_pnl=Decimal(),
-                    fees=Decimal(),
+                    cash=float(100_000),
+                    equity=float(100_000),
+                    margin=float(),
+                    market_value=float(100_000),
+                    pnl=float(1000),
+                    unrealized_pnl=float(),
+                    fees=float(),
                 ),
             )
         )
@@ -1495,13 +1494,13 @@ class TestStrategy:
                 PositionBar(
                     symbol="SPY",
                     date=np.datetime64(START_DATE),
-                    long_shares=Decimal("3.14"),
-                    short_shares=Decimal("0.1"),
-                    close=Decimal(100),
-                    equity=Decimal(100_000),
-                    market_value=Decimal(100_000),
-                    margin=Decimal(),
-                    unrealized_pnl=Decimal(100),
+                    long_shares=float("3.14"),
+                    short_shares=float("0.1"),
+                    close=float(100),
+                    equity=float(100_000),
+                    market_value=float(100_000),
+                    margin=float(),
+                    unrealized_pnl=float(100),
                 ),
             )
         )
@@ -1512,10 +1511,10 @@ class TestStrategy:
                     type="buy",
                     symbol="SPY",
                     date=np.datetime64(START_DATE),
-                    shares=Decimal("3.14"),
-                    limit_price=Decimal(100),
-                    fill_price=Decimal(99),
-                    fees=Decimal(),
+                    shares=float("3.14"),
+                    limit_price=float(100),
+                    fill_price=float(99),
+                    fees=float(),
                 ),
             )
         )
@@ -1527,14 +1526,14 @@ class TestStrategy:
                     symbol="SPY",
                     entry_date=np.datetime64(START_DATE),
                     exit_date=np.datetime64(END_DATE),
-                    entry=Decimal(100),
-                    exit=Decimal(101),
-                    shares=Decimal("3.14"),
-                    pnl=Decimal(1000),
-                    return_pct=Decimal("10.3"),
-                    agg_pnl=Decimal(1000),
+                    entry=float(100),
+                    exit=float(101),
+                    shares=float("3.14"),
+                    pnl=float(1000),
+                    return_pct=float("10.3"),
+                    agg_pnl=float(1000),
                     bars=2,
-                    pnl_per_bar=Decimal(500),
+                    pnl_per_bar=float(500),
                     stop=None,
                 ),
             )
@@ -1697,7 +1696,7 @@ class TestStrategy:
         assert order["type"] == "buy"
         assert order["symbol"] == "SPY"
         assert order["date"] == dates[2]
-        assert np.isnan(order["limit_price"])
+        assert order["limit_price"] == None
         assert order["shares"] == 100
 
     def test_backtest_when_pending_orders_canceled(self, data_source_df):
@@ -1771,10 +1770,8 @@ class TestStrategy:
             row = buy_orders[buy_orders["date"] == buy_date]
             assert row["symbol"].item() == "SPY"
             assert row["shares"].item() == 100
-            assert np.isnan(row["limit_price"].item())
-            assert row["fill_price"].item() == round(
-                df[df["date"] == buy_date]["close"].item(), 2
-            )
+            assert row["limit_price"].item() == None
+            assert row["fill_price"].item() == df[df["date"] == buy_date]["close"].item()
             assert row["fees"].item() == 0
         sell_orders = orders[orders["type"] == "sell"]
         assert len(sell_orders) == len(sell_dates)
@@ -1782,10 +1779,8 @@ class TestStrategy:
             row = sell_orders[sell_orders["date"] == sell_date]
             assert row["symbol"].item() == "SPY"
             assert row["shares"].item() == 100
-            assert np.isnan(row["limit_price"].item())
-            assert row["fill_price"].item() == round(
-                df[df["date"] == sell_date]["open"].item(), 2
-            )
+            assert row["limit_price"].item() == None
+            assert row["fill_price"].item() == df[df["date"] == sell_date]["open"].item()
             assert row["fees"].item() == 0
         assert (result.trades["stop"] == "bar").all()
 
@@ -1811,10 +1806,8 @@ class TestStrategy:
             row = sell_orders[sell_orders["date"] == sell_date]
             assert row["symbol"].item() == "SPY"
             assert row["shares"].item() == 100
-            assert np.isnan(row["limit_price"].item())
-            assert row["fill_price"].item() == round(
-                df[df["date"] == sell_date]["open"].item(), 2
-            )
+            assert row["limit_price"].item() == None
+            assert row["fill_price"].item() == df[df["date"] == sell_date]["open"].item(), 2
             assert row["fees"].item() == 0
         buy_orders = orders[orders["type"] == "buy"]
         assert len(buy_orders) == len(buy_dates)
@@ -1822,10 +1815,8 @@ class TestStrategy:
             row = buy_orders[buy_orders["date"] == buy_date]
             assert row["symbol"].item() == "SPY"
             assert row["shares"].item() == 100
-            assert np.isnan(row["limit_price"].item())
-            assert row["fill_price"].item() == round(
-                df[df["date"] == buy_date]["close"].item(), 2
-            )
+            assert row["limit_price"].item() == None
+            assert row["fill_price"].item() == df[df["date"] == buy_date]["close"].item(), 2
             assert row["fees"].item() == 0
         assert len(result.trades) == len(buy_orders)
         assert (result.trades["stop"] == "bar").all()
@@ -1860,10 +1851,8 @@ class TestStrategy:
             row = buy_orders[buy_orders["date"] == buy_date]
             assert row["symbol"].item() == "SPY"
             assert row["shares"].item() == 99
-            assert np.isnan(row["limit_price"].item())
-            assert row["fill_price"].item() == round(
-                df[df["date"] == buy_date]["close"].item(), 2
-            )
+            assert row["limit_price"].item() == None
+            assert row["fill_price"].item() == df[df["date"] == buy_date]["close"].item()
             assert row["fees"].item() == 0
         sell_orders = orders[orders["type"] == "sell"]
         assert len(sell_orders) == len(sell_dates)
@@ -1871,10 +1860,8 @@ class TestStrategy:
             row = sell_orders[sell_orders["date"] == sell_date]
             assert row["symbol"].item() == "SPY"
             assert row["shares"].item() == 99
-            assert np.isnan(row["limit_price"].item())
-            assert row["fill_price"].item() == round(
-                df[df["date"] == sell_date]["open"].item(), 2
-            )
+            assert row["limit_price"].item() == None
+            assert row["fill_price"].item() == df[df["date"] == sell_date]["open"].item()
             assert row["fees"].item() == 0
         assert (result.trades["stop"] == "bar").all()
 
@@ -1899,7 +1886,7 @@ class TestStrategy:
         assert trade["shares"] == 100
         assert trade["pnl"] == -1000
         assert trade["agg_pnl"] == -1000
-        assert trade["pnl_per_bar"] == round(-1000 / trade["bars"], 2)
+        assert trade["pnl_per_bar"] == (-1000 / trade["bars"])
         assert trade["stop"] == "loss"
         trade = result.trades.iloc[1]
         assert trade["type"] == "long"
@@ -1909,7 +1896,7 @@ class TestStrategy:
         assert trade["shares"] == 100
         assert trade["pnl"] == -1000
         assert trade["agg_pnl"] == -2000
-        assert trade["pnl_per_bar"] == round(-1000 / trade["bars"], 2)
+        assert trade["pnl_per_bar"] == (-1000 / trade["bars"])
         assert trade["stop"] == "loss"
         assert len(result.orders) == 4
         buy_order = result.orders.iloc[0]
@@ -1917,26 +1904,26 @@ class TestStrategy:
         assert buy_order["symbol"] == "SPY"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 100
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
         buy_order = result.orders.iloc[1]
         assert buy_order["type"] == "buy"
         assert buy_order["symbol"] == "AAPL"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 100
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
         sell_order = result.orders.iloc[2]
         assert sell_order["type"] == "sell"
         assert sell_order["symbol"] == "SPY"
         assert sell_order["shares"] == 100
-        assert np.isnan(sell_order["limit_price"])
+        assert sell_order["limit_price"] == None
         assert sell_order["fees"] == 0
         sell_order = result.orders.iloc[3]
         assert sell_order["type"] == "sell"
         assert sell_order["symbol"] == "AAPL"
         assert sell_order["shares"] == 100
-        assert np.isnan(sell_order["limit_price"])
+        assert sell_order["limit_price"] == None
         assert sell_order["fees"] == 0
 
     def test_backtest_when_sell_before_stop_loss(self, data_source_df):
@@ -1967,14 +1954,14 @@ class TestStrategy:
         assert buy_order["symbol"] == "SPY"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 100
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
         sell_order = result.orders.iloc[1]
         assert sell_order["type"] == "sell"
         assert sell_order["symbol"] == "SPY"
         assert sell_order["date"] == dates[10]
         assert sell_order["shares"] == 100
-        assert np.isnan(sell_order["limit_price"])
+        assert sell_order["limit_price"] == None
         assert sell_order["fees"] == 0
 
     def test_backtest_when_cancel_stop(self, data_source_df):
@@ -2000,7 +1987,7 @@ class TestStrategy:
         assert buy_order["symbol"] == "SPY"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 100
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
 
     def test_backtest_when_cancel_stops(self, data_source_df):
@@ -2025,7 +2012,7 @@ class TestStrategy:
         assert buy_order["symbol"] == "SPY"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 100
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
 
     def test_backtest_when_pos_size_handler_zero_shares(self, data_source_df):
@@ -2086,7 +2073,7 @@ class TestStrategy:
         assert buy_order["symbol"] == "AAPL"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 200
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
 
     def test_backtest_when_before_exec_and_no_executions(self, data_source_df):
@@ -2110,7 +2097,7 @@ class TestStrategy:
         assert buy_order["symbol"] == "AAPL"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 200
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
 
     def test_backtest_when_after_exec(self, data_source_df):
@@ -2138,7 +2125,7 @@ class TestStrategy:
         assert buy_order["symbol"] == "AAPL"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 300
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
 
     def test_backtest_when_after_exec_and_no_executions(self, data_source_df):
@@ -2162,7 +2149,7 @@ class TestStrategy:
         assert buy_order["symbol"] == "AAPL"
         assert buy_order["date"] == dates[1]
         assert buy_order["shares"] == 200
-        assert np.isnan(buy_order["limit_price"])
+        assert buy_order["limit_price"] == None
         assert buy_order["fees"] == 0
 
     def test_backtest_when_warmup(self, data_source_df):

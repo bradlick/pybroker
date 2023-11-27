@@ -8,7 +8,6 @@ This code is licensed under Apache 2.0 with Commons Clause license
 
 from pybroker.common import BarData, FeeMode, PriceType
 from dataclasses import dataclass, field
-from decimal import Decimal
 from typing import Callable, Optional, Union
 
 
@@ -70,9 +69,9 @@ class StrategyConfig:
     bootstrap_sample_size: int = field(default=1_000)
     exit_on_last_bar: bool = field(default=False)
     exit_cover_fill_price: Union[
-        PriceType, Callable[[str, BarData], Union[int, float, Decimal]]
+        PriceType, Callable[[str, BarData], Union[int, float, float]]
     ] = field(default=PriceType.MIDDLE)
     exit_sell_fill_price: Union[
-        PriceType, Callable[[str, BarData], Union[int, float, Decimal]]
+        PriceType, Callable[[str, BarData], Union[int, float, float]]
     ] = field(default=PriceType.MIDDLE)
     bars_per_year: Optional[int] = field(default=None)

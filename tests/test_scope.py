@@ -12,7 +12,6 @@ import pybroker
 import pytest
 import re
 from .fixtures import *
-from decimal import Decimal
 from pybroker.common import PriceType
 from pybroker.indicator import IndicatorSymbol
 from pybroker.model import model
@@ -420,8 +419,8 @@ class TestPriceScope:
         "price, expected_price",
         [
             (50, 50),
-            (111.1, Decimal("111.1")),
-            (np.float32(99.98), Decimal("99.98")),
+            (111.1, float("111.1")),
+            (np.float32(99.98), float("99.98")),
             (lambda _symbol, _bar_data: 60, 60),
             (PriceType.OPEN, 200),
             (PriceType.HIGH, 400),

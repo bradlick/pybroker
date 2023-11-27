@@ -11,7 +11,6 @@ import pandas as pd
 import os
 import re
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
 from joblib import Parallel
 from numpy.typing import NDArray
@@ -26,7 +25,6 @@ _tf_abbr: Final = {
     "w": "week",
     "mo": "month",
 }
-_CENTS: Final = Decimal(".01")
 
 
 class IndicatorSymbol(NamedTuple):
@@ -207,14 +205,14 @@ def to_datetime(
         raise TypeError(f"Unsupported date type: {type(date)}")
 
 
-def to_decimal(value: Union[int, float, Decimal]) -> Decimal:
-    """Converts ``value`` to :class:`Decimal`."""
+def to_decimal(value: Union[int, float, float]) -> float:
+    """Converts ``value`` to :class:`float`."""
     value_type = type(value)
-    if value_type == Decimal:
+    if value_type == float:
         return value  # type: ignore[return-value]
     elif value_type == int:
-        return Decimal(value)
-    return Decimal(str(value))
+        return float(value)
+    return float(str(value))
 
 
 def parse_timeframe(timeframe: str) -> list[tuple[int, str]]:
@@ -282,18 +280,18 @@ def to_seconds(timeframe: Optional[str]) -> int:
     )
 
 
-def quantize(df: pd.DataFrame, col: str) -> pd.Series:
-    """Quantizes a :class:`pandas.DataFrame` column by rounding values to the
-    nearest cent.
+# def quantize(df: pd.DataFrame, col: str) -> pd.Series:
+#     """Quantizes a :class:`pandas.DataFrame` column by rounding values to the
+#     nearest cent.
 
-    Returns:
-        The quantized column converted to ``float`` values.
-    """
-    if col not in df.columns:
-        raise ValueError(f"Column {col!r} not found in DataFrame.")
-    df = df[~df[col].isna()]
-    values = df[col].apply(lambda d: d.quantize(_CENTS, ROUND_HALF_UP))
-    return values.astype(float)
+#     Returns:
+#         The quantized column converted to ``float`` values.
+#     """
+#     if col not in df.columns:
+#         raise ValueError(f"Column {col!r} not found in DataFrame.")
+#     df = df[~df[col].isna()]
+#     values = df[col].apply(lambda d: d.quantize(_CENTS, ROUND_HALF_UP))
+#     return values.astype(float)
 
 
 def verify_data_source_columns(df: pd.DataFrame):

@@ -63,12 +63,12 @@ class TestRandomSlippageModel:
         model = RandomSlippageModel(min_pct=1, max_pct=2)
         with patch.object(random, "uniform", return_value="0.01"):
             model.apply_slippage(ctx, buy_shares=100, sell_shares=None)
-            assert ctx.buy_shares == Decimal(99)
+            assert ctx.buy_shares == float(99)
             assert ctx.sell_shares is None
 
     def test_slip_when_sell_shares(self, ctx):
         model = RandomSlippageModel(min_pct=1, max_pct=2)
         with patch.object(random, "uniform", return_value="0.01"):
             model.apply_slippage(ctx, buy_shares=None, sell_shares=100)
-            assert ctx.sell_shares == Decimal(99)
+            assert ctx.sell_shares == float(99)
             assert ctx.buy_shares is None

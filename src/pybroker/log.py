@@ -11,7 +11,6 @@ import logging
 import numpy as np
 import time
 from pybroker.common import Day, IndicatorSymbol, ModelSymbol, to_datetime
-from decimal import Decimal
 from progressbar import ProgressBar
 from typing import Iterable, Optional, Sequence, Sized
 
@@ -269,9 +268,9 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         order = self._format_order(
             date=date,
@@ -286,11 +285,11 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
-        cash: Decimal,
-        clamped_shares: Decimal,
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
+        cash: float,
+        clamped_shares: float,
     ):
         order = self._format_order(
             date=date,
@@ -308,9 +307,9 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         order = self._format_order(
             date=date,
@@ -325,9 +324,9 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         order = self._format_order(
             date=date,
@@ -342,9 +341,9 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         order = self._format_order(
             date=date,
@@ -359,9 +358,9 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         order = self._format_order(
             date=date,
@@ -376,9 +375,9 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         order = self._format_order(
             date=date,
@@ -460,9 +459,9 @@ class Logger:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         return (
             f"date={to_datetime(date)}\n"

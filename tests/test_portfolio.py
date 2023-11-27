@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from collections import deque
-from decimal import Decimal
 from pybroker.common import FeeMode, PriceType, StopType
 from pybroker.portfolio import Portfolio, Stop
 from pybroker.scope import ColumnScope, PriceScope
@@ -18,15 +17,15 @@ from pybroker.scope import ColumnScope, PriceScope
 SYMBOL_1 = "SPY"
 SYMBOL_2 = "AAPL"
 CASH = 100_000
-FILL_PRICE_1 = Decimal("99.99")
-FILL_PRICE_2 = Decimal(100)
-FILL_PRICE_3 = Decimal("102.20")
-FILL_PRICE_4 = Decimal("103.30")
-LIMIT_PRICE_1 = Decimal(100)
-LIMIT_PRICE_2 = Decimal(101)
-LIMIT_PRICE_3 = Decimal(102)
-SHARES_1 = Decimal(120)
-SHARES_2 = Decimal(200)
+FILL_PRICE_1 = float("99.99")
+FILL_PRICE_2 = float(100)
+FILL_PRICE_3 = float("102.20")
+FILL_PRICE_4 = float("103.30")
+LIMIT_PRICE_1 = float(100)
+LIMIT_PRICE_2 = float(101)
+LIMIT_PRICE_3 = float(102)
+SHARES_1 = float(120)
+SHARES_2 = float(200)
 DATE_1 = np.datetime64("2020-02-02")
 DATE_2 = np.datetime64("2020-02-03")
 DATE_3 = np.datetime64("2020-02-04")
@@ -75,11 +74,11 @@ def assert_trade(
     assert trade.entry == entry
     assert trade.exit == exit
     assert trade.shares == shares
-    assert trade.pnl == pnl
+    assert round(trade.pnl, 4) == round(pnl, 4)
     assert trade.return_pct == return_pct
-    assert trade.agg_pnl == agg_pnl
+    assert round(trade.agg_pnl, 4) == round(agg_pnl, 4)
     assert trade.bars == bars
-    assert trade.pnl_per_bar == pnl_per_bar
+    assert round(trade.pnl_per_bar, 4) == round(pnl_per_bar, 4)
     if stop_type is None:
         assert trade.stop is None
     else:
@@ -95,8 +94,8 @@ def assert_portfolio(
     short_positions_len,
     long_positions_len,
 ):
-    assert portfolio.cash == cash
-    assert portfolio.pnl == pnl
+    assert round(portfolio.cash, 4) == round(cash, 4)
+    assert round(portfolio.pnl, 4) == round(pnl, 4)
     assert portfolio.symbols == symbols
     assert portfolio.orders == deque(orders)
     assert len(portfolio.short_positions) == short_positions_len
@@ -160,7 +159,7 @@ def test_buy(fill_price, limit_price):
 
 
 def test_buy_when_partial_filled():
-    shares = Decimal(SHARES_1 - 100)
+    shares = float(SHARES_1 - 100)
     cash = 50 + FILL_PRICE_1 * shares
     portfolio = Portfolio(cash)
     order = portfolio.buy(
@@ -388,10 +387,10 @@ def test_buy_when_existing_short_position():
 
 def test_buy_when_existing_short_and_not_enough_cash():
     portfolio = Portfolio(100)
-    entry_price = Decimal(5)
-    entry_limit = Decimal("4.9")
-    exit_price = Decimal(200)
-    exit_limit = Decimal(201)
+    entry_price = float(5)
+    entry_limit = float("4.9")
+    exit_price = float(200)
+    exit_limit = float(201)
     short_order = portfolio.sell(
         DATE_1, SYMBOL_1, SHARES_1, entry_price, entry_limit
     )
@@ -660,7 +659,7 @@ def test_sell_when_all_shares_and_multiple_bars():
 
 
 def test_sell_when_all_shares_and_fractional():
-    shares = Decimal("0.34")
+    shares = float("0.34")
     portfolio = Portfolio(CASH, enable_fractional_shares=True)
     buy_order = portfolio.buy(
         DATE_1, SYMBOL_1, shares, FILL_PRICE_1, LIMIT_PRICE_1
@@ -737,15 +736,15 @@ def test_sell_when_all_shares_and_fractional():
     [
         (
             FeeMode.ORDER_PERCENT,
-            FILL_PRICE_1 * SHARES_1 * Decimal("0.01"),
-            FILL_PRICE_3 * SHARES_1 * Decimal("0.01"),
+            FILL_PRICE_1 * SHARES_1 * float("0.01"),
+            FILL_PRICE_3 * SHARES_1 * float("0.01"),
         ),
         (
             FeeMode.PER_SHARE,
             SHARES_1,
             SHARES_1,
         ),
-        (FeeMode.PER_ORDER, Decimal("1"), Decimal("1")),
+        (FeeMode.PER_ORDER, float("1"), float("1")),
     ],
 )
 def test_buy_and_sell_when_fees(
@@ -1509,8 +1508,8 @@ def test_cover_when_multiple_entries():
 def test_cover_when_not_enough_cash():
     portfolio = Portfolio(100)
     sell_fill_price = 5
-    sell_limit_price = Decimal("4.9")
-    buy_fill_price = Decimal(1000)
+    sell_limit_price = float("4.9")
+    buy_fill_price = float(1000)
     buy_limit_price = 1001
     short_order = portfolio.sell(
         DATE_1, SYMBOL_1, SHARES_1, sell_fill_price, sell_limit_price
@@ -1685,7 +1684,7 @@ def test_exit_position():
 
 
 def test_trigger_long_bar_stop():
-    expected_fill_price = Decimal(200)
+    expected_fill_price = float(200)
     df = pd.DataFrame(
         [
             [SYMBOL_1, DATE_1, 100],
@@ -1709,7 +1708,7 @@ def test_trigger_long_bar_stop():
             exit_price=None,
         ),
     )
-    entry_price = Decimal(100)
+    entry_price = float(100)
     portfolio = Portfolio(CASH)
     portfolio.buy(
         DATE_1,
@@ -1773,7 +1772,7 @@ def test_trigger_long_bar_stop():
 
 @pytest.mark.parametrize(
     "percent, points, expected_fill_price",
-    [(Decimal(20), None, Decimal(160)), (None, Decimal(10), Decimal(190))],
+    [(float(20), None, float(160)), (None, float(10), float(190))],
 )
 def test_trigger_long_loss_stop(percent, points, expected_fill_price):
     df = pd.DataFrame(
@@ -1799,7 +1798,7 @@ def test_trigger_long_loss_stop(percent, points, expected_fill_price):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(200)
+    entry_price = float(200)
     portfolio = Portfolio(CASH)
     portfolio.buy(
         DATE_1,
@@ -1863,7 +1862,7 @@ def test_trigger_long_loss_stop(percent, points, expected_fill_price):
 
 @pytest.mark.parametrize(
     "percent, points, expected_fill_price",
-    [(Decimal(20), None, Decimal(240)), (None, Decimal(10), Decimal(210))],
+    [(float(20), None, float(240)), (None, float(10), float(210))],
 )
 def test_trigger_long_profit_stop(percent, points, expected_fill_price):
     df = pd.DataFrame(
@@ -1889,7 +1888,7 @@ def test_trigger_long_profit_stop(percent, points, expected_fill_price):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(200)
+    entry_price = float(200)
     portfolio = Portfolio(CASH)
     portfolio.buy(
         DATE_1,
@@ -1953,7 +1952,7 @@ def test_trigger_long_profit_stop(percent, points, expected_fill_price):
 
 @pytest.mark.parametrize(
     "percent, points, expected_fill_price",
-    [(Decimal(20), None, Decimal(200)), (None, Decimal(20), Decimal(200))],
+    [(float(20), None, float(200)), (None, float(20), float(200))],
 )
 def test_trigger_long_trailing_stop(percent, points, expected_fill_price):
     df = pd.DataFrame(
@@ -1982,7 +1981,7 @@ def test_trigger_long_trailing_stop(percent, points, expected_fill_price):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(100)
+    entry_price = float(100)
     portfolio = Portfolio(CASH)
     portfolio.buy(
         DATE_1,
@@ -2051,7 +2050,7 @@ def test_trigger_long_trailing_stop(percent, points, expected_fill_price):
 
 
 def test_trigger_short_bar_stop():
-    expected_fill_price = Decimal(200)
+    expected_fill_price = float(200)
     df = pd.DataFrame(
         [
             [SYMBOL_1, DATE_1, 100],
@@ -2075,7 +2074,7 @@ def test_trigger_short_bar_stop():
             exit_price=None,
         ),
     )
-    entry_price = Decimal(100)
+    entry_price = float(100)
     portfolio = Portfolio(CASH)
     portfolio.sell(
         DATE_1,
@@ -2139,7 +2138,7 @@ def test_trigger_short_bar_stop():
 
 @pytest.mark.parametrize(
     "percent, points, expected_fill_price",
-    [(Decimal(20), None, Decimal(240)), (None, Decimal(10), Decimal(210))],
+    [(float(20), None, float(240)), (None, float(10), float(210))],
 )
 def test_trigger_short_loss_stop(percent, points, expected_fill_price):
     df = pd.DataFrame(
@@ -2165,7 +2164,7 @@ def test_trigger_short_loss_stop(percent, points, expected_fill_price):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(200)
+    entry_price = float(200)
     portfolio = Portfolio(CASH)
     portfolio.sell(
         DATE_1,
@@ -2229,7 +2228,7 @@ def test_trigger_short_loss_stop(percent, points, expected_fill_price):
 
 @pytest.mark.parametrize(
     "percent, points, expected_fill_price",
-    [(Decimal(20), None, Decimal(160)), (None, Decimal(10), Decimal(190))],
+    [(float(20), None, float(160)), (None, float(10), float(190))],
 )
 def test_trigger_short_profit_stop(percent, points, expected_fill_price):
     df = pd.DataFrame(
@@ -2255,7 +2254,7 @@ def test_trigger_short_profit_stop(percent, points, expected_fill_price):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(200)
+    entry_price = float(200)
     portfolio = Portfolio(CASH)
     portfolio.sell(
         DATE_1,
@@ -2319,7 +2318,7 @@ def test_trigger_short_profit_stop(percent, points, expected_fill_price):
 
 @pytest.mark.parametrize(
     "percent, points, expected_fill_price",
-    [(Decimal(20), None, Decimal(400)), (None, Decimal(20), Decimal(400))],
+    [(float(20), None, float(400)), (None, float(20), float(400))],
 )
 def test_trigger_short_trailing_stop(percent, points, expected_fill_price):
     df = pd.DataFrame(
@@ -2348,7 +2347,7 @@ def test_trigger_short_trailing_stop(percent, points, expected_fill_price):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(300)
+    entry_price = float(300)
     portfolio = Portfolio(CASH)
     portfolio.sell(
         DATE_1,
@@ -2446,7 +2445,7 @@ def test_long_stop_limit_price(stop_type):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(100)
+    entry_price = float(100)
     portfolio = Portfolio(CASH)
     portfolio.buy(
         DATE_1,
@@ -2501,7 +2500,7 @@ def test_long_stop_exit_price(stop_type):
             exit_price=PriceType.OPEN,
         ),
     )
-    entry_price = Decimal(100)
+    entry_price = float(100)
     portfolio = Portfolio(CASH)
     portfolio.buy(
         DATE_1,
@@ -2556,7 +2555,7 @@ def test_short_stop_limit_price(stop_type):
             exit_price=None,
         ),
     )
-    entry_price = Decimal(300)
+    entry_price = float(300)
     portfolio = Portfolio(CASH)
     portfolio.sell(
         DATE_1,
@@ -2611,7 +2610,7 @@ def test_short_stop_exit_price(stop_type):
             exit_price=PriceType.OPEN,
         ),
     )
-    entry_price = Decimal(300)
+    entry_price = float(300)
     portfolio = Portfolio(CASH)
     portfolio.sell(
         DATE_1,
@@ -2649,7 +2648,7 @@ def test_check_stops_when_multiple_entries():
     df = df.set_index(["symbol", "date"])
     sym_end_index = {SYMBOL_1: 2}
     price_scope = PriceScope(ColumnScope(df), sym_end_index)
-    entry_price_1 = Decimal(200)
+    entry_price_1 = float(200)
     portfolio = Portfolio(CASH)
     portfolio.buy(
         DATE_1,
@@ -2674,7 +2673,7 @@ def test_check_stops_when_multiple_entries():
     )
     portfolio.incr_bars()
     portfolio.check_stops(DATE_2, price_scope)
-    entry_price_2 = Decimal(300)
+    entry_price_2 = float(300)
     portfolio.buy(
         DATE_2,
         SYMBOL_1,
@@ -2702,8 +2701,8 @@ def test_check_stops_when_multiple_entries():
     portfolio.incr_bars()
     sym_end_index[SYMBOL_1] += 1
     portfolio.check_stops(DATE_4, price_scope)
-    expected_fill_price_1 = Decimal(100)
-    expected_fill_price_2 = Decimal(200)
+    expected_fill_price_1 = float(100)
+    expected_fill_price_2 = float(200)
     expected_pnl_1 = (expected_fill_price_1 - entry_price_1) * SHARES_1
     expected_pnl_2 = (expected_fill_price_2 - entry_price_2) * SHARES_2
     expected_pnl = expected_pnl_1 + expected_pnl_2
@@ -2808,7 +2807,7 @@ def test_check_stops_when_multiple_stops_hit():
         DATE_1,
         SYMBOL_1,
         SHARES_1,
-        Decimal(200),
+        float(200),
         limit_price=None,
         stops=(
             Stop(
@@ -2875,7 +2874,7 @@ def test_remove_stop():
         DATE_1,
         SYMBOL_1,
         SHARES_1,
-        Decimal(200),
+        float(200),
         limit_price=None,
         stops=stops,
     )
@@ -2917,7 +2916,7 @@ def test_remove_stops_when_symbol(stop_type):
         DATE_1,
         SYMBOL_1,
         SHARES_1,
-        Decimal(200),
+        float(200),
         limit_price=None,
         stops=stops,
     )
@@ -2962,7 +2961,7 @@ def test_remove_stops_when_position(stop_type):
         DATE_1,
         SYMBOL_1,
         SHARES_1,
-        Decimal(200),
+        float(200),
         limit_price=None,
         stops=stops,
     )
@@ -3007,7 +3006,7 @@ def test_remove_stops_when_entry(stop_type):
         DATE_1,
         SYMBOL_1,
         SHARES_1,
-        Decimal(200),
+        float(200),
         limit_price=None,
         stops=stops,
     )
@@ -3032,8 +3031,8 @@ def test_win_loss_rate():
     portfolio.sell(DATE_2, SYMBOL_1, SHARES_1, FILL_PRICE_2, limit_price=None)
     portfolio.sell(DATE_2, SYMBOL_2, SHARES_1, FILL_PRICE_2, LIMIT_PRICE_1)
     assert len(portfolio.trades) == 2
-    assert portfolio.win_rate == Decimal("0.5")
-    assert portfolio.loss_rate == Decimal("0.5")
+    assert portfolio.win_rate == float("0.5")
+    assert portfolio.loss_rate == float("0.5")
 
 
 def test_incr_ids():
@@ -3073,9 +3072,9 @@ def test_incr_bars():
 
 def test_capture_bar_when_short_position():
     cash = 100_000
-    fill_price = Decimal("16.72")
+    fill_price = float("16.72")
     shares = 100
-    close_price = Decimal("16.7")
+    close_price = float("16.7")
     portfolio = Portfolio(cash)
     portfolio.sell(DATE_1, SYMBOL_1, shares, fill_price)
     df = pd.DataFrame(
@@ -3093,7 +3092,7 @@ def test_capture_bar_when_short_position():
     assert bar.equity == bar.cash
     assert bar.margin == close_price * shares
     assert bar.pnl == 0
-    assert bar.unrealized_pnl == (fill_price - close_price) * shares
+    assert round(bar.unrealized_pnl, 4) == round((fill_price - close_price) * shares, 4)
     assert bar.market_value == bar.equity + bar.unrealized_pnl
     assert bar.fees == 0
     assert len(portfolio.position_bars) == 1
@@ -3105,15 +3104,15 @@ def test_capture_bar_when_short_position():
     assert pos_bar.close == close_price
     assert pos_bar.equity == 0
     assert pos_bar.margin == close_price * shares
-    assert pos_bar.unrealized_pnl == (fill_price - close_price) * shares
+    assert round(pos_bar.unrealized_pnl, 4) == round((fill_price - close_price) * shares, 4)
     assert pos_bar.market_value == pos_bar.margin + pos_bar.unrealized_pnl
 
 
 def test_capture_bar_when_long_position():
     cash = 100_000
-    fill_price = Decimal("16.72")
+    fill_price = float("16.72")
     shares = 100
-    close_price = Decimal("16.7")
+    close_price = float("16.7")
     portfolio = Portfolio(cash)
     portfolio.buy(DATE_1, SYMBOL_1, shares, fill_price)
     df = pd.DataFrame(
@@ -3130,7 +3129,7 @@ def test_capture_bar_when_long_position():
     assert bar.cash == cash - shares * fill_price
     assert bar.equity == cash + bar.pnl
     assert bar.margin == 0
-    assert bar.pnl == (close_price - fill_price) * shares
+    assert round(bar.pnl,4) == round((close_price - fill_price) * shares, 4)
     assert bar.market_value == bar.equity
     assert bar.fees == 0
     assert len(portfolio.position_bars) == 1
@@ -3142,5 +3141,5 @@ def test_capture_bar_when_long_position():
     assert pos_bar.close == close_price
     assert pos_bar.equity == shares * close_price
     assert pos_bar.margin == 0
-    assert pos_bar.unrealized_pnl == (close_price - fill_price) * shares
+    assert round(pos_bar.unrealized_pnl, 4) == round((close_price - fill_price) * shares, 4)
     assert pos_bar.market_value == pos_bar.equity

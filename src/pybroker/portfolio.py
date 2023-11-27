@@ -22,7 +22,6 @@ from pybroker.common import (
 from pybroker.scope import PriceScope, StaticScope
 from collections import deque
 from dataclasses import dataclass, field
-from decimal import Decimal
 from typing import (
     Callable,
     Iterable,
@@ -54,20 +53,20 @@ class Stop(NamedTuple):
     symbol: str
     stop_type: StopType
     pos_type: Literal["long", "short"]
-    percent: Optional[Decimal]
-    points: Optional[Decimal]
+    percent: Optional[float]
+    points: Optional[float]
     bars: Optional[int]
     fill_price: Optional[
         Union[
             int,
             float,
             np.floating,
-            Decimal,
+            float,
             PriceType,
-            Callable[[str, BarData], Union[int, float, Decimal]],
+            Callable[[str, BarData], Union[int, float, float]],
         ]
     ]
-    limit_price: Optional[Decimal]
+    limit_price: Optional[float]
     exit_price: Optional[PriceType]
 
 
@@ -89,8 +88,8 @@ class Entry:
     id: int
     date: np.datetime64
     symbol: str
-    shares: Decimal
-    price: Decimal
+    shares: float
+    price: float
     type: Literal["long", "short"]
     bars: int = field(default=0)
     stops: set[Stop] = field(default_factory=set)
@@ -98,7 +97,7 @@ class Entry:
 
 @dataclass
 class _StopData:
-    value: Decimal
+    value: float
     stop: Stop
     entry: Entry
 
@@ -121,13 +120,13 @@ class Position:
         bars: Current number of bars since entry.
     """
     symbol: str
-    shares: Decimal
+    shares: float
     type: Literal["long", "short"]
-    close: Decimal = field(default_factory=Decimal)
-    equity: Decimal = field(default_factory=Decimal)
-    market_value: Decimal = field(default_factory=Decimal)
-    margin: Decimal = field(default_factory=Decimal)
-    pnl: Decimal = field(default_factory=Decimal)
+    close: float = field(default_factory=float)
+    equity: float = field(default_factory=float)
+    market_value: float = field(default_factory=float)
+    margin: float = field(default_factory=float)
+    pnl: float = field(default_factory=float)
     entries: deque[Entry] = field(default_factory=deque)
     bars: int = field(default=0)
 
@@ -158,14 +157,14 @@ class Trade(NamedTuple):
     symbol: str
     entry_date: np.datetime64
     exit_date: np.datetime64
-    entry: Decimal
-    exit: Decimal
-    shares: Decimal
-    pnl: Decimal
-    return_pct: Decimal
-    agg_pnl: Decimal
+    entry: float
+    exit: float
+    shares: float
+    pnl: float
+    return_pct: float
+    agg_pnl: float
     bars: int
-    pnl_per_bar: Decimal
+    pnl_per_bar: float
     stop: Optional[Literal["bar", "loss", "profit", "trailing"]]
 
 
@@ -187,10 +186,10 @@ class Order(NamedTuple):
     type: Literal["buy", "sell"]
     symbol: str
     date: np.datetime64
-    shares: Decimal
-    limit_price: Optional[Decimal]
-    fill_price: Decimal
-    fees: Decimal
+    shares: float
+    limit_price: Optional[float]
+    fill_price: float
+    fees: float
 
 
 class PortfolioBar(NamedTuple):
@@ -209,13 +208,13 @@ class PortfolioBar(NamedTuple):
     """
 
     date: np.datetime64
-    cash: Decimal
-    equity: Decimal
-    margin: Decimal
-    market_value: Decimal
-    pnl: Decimal
-    unrealized_pnl: Decimal
-    fees: Decimal
+    cash: float
+    equity: float
+    margin: float
+    market_value: float
+    pnl: float
+    unrealized_pnl: float
+    fees: float
 
 
 class PositionBar(NamedTuple):
@@ -235,31 +234,31 @@ class PositionBar(NamedTuple):
 
     symbol: str
     date: np.datetime64
-    long_shares: Decimal
-    short_shares: Decimal
-    close: Decimal
-    equity: Decimal
-    market_value: Decimal
-    margin: Decimal
-    unrealized_pnl: Decimal
+    long_shares: float
+    short_shares: float
+    close: float
+    equity: float
+    market_value: float
+    margin: float
+    unrealized_pnl: float
 
 
 class _OrderResult(NamedTuple):
-    filled_shares: Decimal
-    rem_shares: Decimal
+    filled_shares: float
+    rem_shares: float
 
 
 def _calculate_pnl(
-    price: Decimal,
+    price: float,
     entries: Iterable[Entry],
     entry_type: Literal["short", "long"],
-) -> Decimal:
+) -> float:
     if entry_type == "long":
-        return Decimal(
+        return float(
             sum((price - entry.price) * entry.shares for entry in entries)
         )
     elif entry_type == "short":
-        return Decimal(
+        return float(
             sum((entry.price - price) * entry.shares for entry in entries)
         )
     else:
@@ -314,42 +313,42 @@ class Portfolio:
         max_long_positions: Optional[int] = None,
         max_short_positions: Optional[int] = None,
     ):
-        self.cash: Decimal = to_decimal(cash)
+        self.cash: float = to_decimal(cash)
         self._initial_market_value = self.cash
         self._fee_mode = fee_mode
-        self._fee_amount: Optional[Decimal] = (
+        self._fee_amount: Optional[float] = (
             None if fee_amount is None else to_decimal(fee_amount)
         )
         self._enable_fractional_shares = enable_fractional_shares
-        self.equity: Decimal = self.cash
-        self.market_value: Decimal = self.cash
-        self.fees = Decimal()
+        self.equity: float = self.cash
+        self.market_value: float = self.cash
+        self.fees = float()
         self._max_long_positions = max_long_positions
         self._max_short_positions = max_short_positions
         self.orders: deque[Order] = deque()
         self.trades: deque[Trade] = deque()
-        self.margin: Decimal = Decimal()
-        self.pnl: Decimal = Decimal()
+        self.margin: float = float()
+        self.pnl: float = float()
         self.long_positions: dict[str, Position] = {}
         self.short_positions: dict[str, Position] = {}
         self.symbols: set[str] = set()
         self.bars: deque[PortfolioBar] = deque()
         self.position_bars: deque[PositionBar] = deque()
-        self.win_rate: Decimal = Decimal()
-        self.loss_rate: Decimal = Decimal()
-        self._wins: Decimal = Decimal()
+        self.win_rate: float = float()
+        self.loss_rate: float = float()
+        self._wins: float = float()
         self._logger = StaticScope.instance().logger
         self._stop_data: dict[int, _StopData] = {}
         self._order_id: int = 0
         self._entry_id: int = 0
         self._trade_id: int = 0
 
-    def _calculate_fees(self, fill_price: Decimal, shares: Decimal) -> Decimal:
-        fees = Decimal()
+    def _calculate_fees(self, fill_price: float, shares: float) -> float:
+        fees = float()
         if self._fee_mode is None or self._fee_amount is None:
             return fees
         if self._fee_mode == FeeMode.ORDER_PERCENT:
-            fees = self._fee_amount / Decimal(100) * fill_price * shares
+            fees = self._fee_amount / float(100) * fill_price * shares
         elif self._fee_mode == FeeMode.PER_ORDER:
             fees = self._fee_amount
         elif self._fee_mode == FeeMode.PER_SHARE:
@@ -360,9 +359,9 @@ class Portfolio:
 
     def _verify_input(
         self,
-        shares: Union[int, float, Decimal],
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: Union[int, float, float],
+        fill_price: float,
+        limit_price: Optional[float],
     ):
         if shares < 0:
             raise ValueError(f"Shares cannot be negative: {shares}")
@@ -375,8 +374,8 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        price: Decimal,
+        shares: float,
+        price: float,
         type: Literal["long", "short"],
         pos: Position,
     ) -> Entry:
@@ -397,9 +396,9 @@ class Portfolio:
         date: np.datetime64,
         symbol: str,
         type: Literal["buy", "sell"],
-        limit_price: Optional[Decimal],
-        fill_price: Decimal,
-        shares: Decimal,
+        limit_price: Optional[float],
+        fill_price: float,
+        shares: float,
     ) -> Order:
         self._order_id += 1
         fees = self._calculate_fees(fill_price, shares)
@@ -423,14 +422,14 @@ class Portfolio:
         symbol: str,
         entry_date: np.datetime64,
         exit_date: np.datetime64,
-        entry_price: Decimal,
-        exit_price: Decimal,
-        shares: Decimal,
-        pnl: Decimal,
-        return_pct: Decimal,
-        agg_pnl: Decimal,
+        entry_price: float,
+        exit_price: float,
+        shares: float,
+        pnl: float,
+        return_pct: float,
+        agg_pnl: float,
         bars: int,
-        pnl_per_bar: Decimal,
+        pnl_per_bar: float,
         stop_type: Optional[StopType],
     ):
         self._trade_id += 1
@@ -456,7 +455,7 @@ class Portfolio:
         self.win_rate = self._wins / len(self.trades)
         self.loss_rate = 1 - self.win_rate
 
-    def _get_stop_amount(self, stop: Stop, price: Decimal) -> Decimal:
+    def _get_stop_amount(self, stop: Stop, price: float) -> float:
         if stop.percent is not None:
             return price * stop.percent / 100
         elif stop.points is not None:
@@ -493,11 +492,11 @@ class Portfolio:
             if stop.id in self._stop_data:
                 del self._stop_data[stop.id]
 
-    def _clamp_shares(self, fill_price: Decimal, shares: Decimal) -> Decimal:
+    def _clamp_shares(self, fill_price: float, shares: float) -> float:
         max_shares = (
-            Decimal(self.cash / fill_price)
+            float(self.cash / fill_price)
             if self._enable_fractional_shares
-            else Decimal(self.cash // fill_price)
+            else float(self.cash // fill_price)
         )
         return min(shares, max_shares)
 
@@ -505,9 +504,9 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal] = None,
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float] = None,
         stops: Optional[Iterable[Stop]] = None,
     ) -> Optional[Order]:
         r"""Places a buy order.
@@ -556,14 +555,14 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
+        shares: float,
+        fill_price: float,
     ) -> _OrderResult:
         if symbol not in self.short_positions:
-            return _OrderResult(Decimal(), shares)
+            return _OrderResult(float(), shares)
         rem_shares = shares
         if rem_shares <= 0:
-            return _OrderResult(Decimal(), shares)
+            return _OrderResult(float(), shares)
         pos = self.short_positions[symbol]
         while pos.entries:
             entry = pos.entries[0]
@@ -578,7 +577,7 @@ class Portfolio:
                 self._exit_short(
                     date, pos, entry, rem_shares, fill_price, stop_type=None
                 )
-                rem_shares = Decimal()
+                rem_shares = float()
                 break
         self._update_position(pos)
         return _OrderResult(shares - rem_shares, rem_shares)
@@ -588,8 +587,8 @@ class Portfolio:
         date: np.datetime64,
         pos: Position,
         entry: Entry,
-        shares: Decimal,
-        fill_price: Decimal,
+        shares: float,
+        fill_price: float,
         stop_type: Optional[StopType],
     ):
         order_amount = shares * fill_price
@@ -621,11 +620,11 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal],
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float],
         stops: Optional[Iterable[Stop]],
-    ) -> Decimal:
+    ) -> float:
         clamped_shares = self._clamp_shares(fill_price, shares)
         if clamped_shares < shares:
             self._logger.debug_buy_shares_exceed_cash(
@@ -639,13 +638,13 @@ class Portfolio:
             )
             shares = clamped_shares
         if shares <= 0:
-            return Decimal()
+            return float()
         if (
             self._max_long_positions is not None
             and symbol not in self.long_positions
             and len(self.long_positions) == self._max_long_positions
         ):
-            return Decimal()
+            return float()
         order_amount = shares * fill_price
         self.cash -= order_amount
         if symbol not in self.long_positions:
@@ -671,9 +670,9 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
-        limit_price: Optional[Decimal] = None,
+        shares: float,
+        fill_price: float,
+        limit_price: Optional[float] = None,
         stops: Optional[Iterable[Stop]] = None,
     ) -> Optional[Order]:
         r"""Places a sell order.
@@ -722,11 +721,11 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
+        shares: float,
+        fill_price: float,
     ) -> _OrderResult:
         if symbol not in self.long_positions:
-            return _OrderResult(Decimal(), shares)
+            return _OrderResult(float(), shares)
         rem_shares = shares
         pos = self.long_positions[symbol]
         while pos.entries:
@@ -742,7 +741,7 @@ class Portfolio:
                 self._exit_long(
                     date, pos, entry, rem_shares, fill_price, stop_type=None
                 )
-                rem_shares = Decimal()
+                rem_shares = float()
                 break
         self._update_position(pos)
         return _OrderResult(shares - rem_shares, rem_shares)
@@ -752,8 +751,8 @@ class Portfolio:
         date: np.datetime64,
         pos: Position,
         entry: Entry,
-        shares: Decimal,
-        fill_price: Decimal,
+        shares: float,
+        fill_price: float,
         stop_type: Optional[StopType],
     ):
         order_amount = shares * fill_price
@@ -801,18 +800,18 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: Decimal,
-        fill_price: Decimal,
+        shares: float,
+        fill_price: float,
         stops: Optional[Iterable[Stop]],
-    ) -> Decimal:
+    ) -> float:
         if shares <= 0:
-            return Decimal()
+            return float()
         if (
             self._max_short_positions is not None
             and symbol not in self.short_positions
             and len(self.short_positions) == self._max_short_positions
         ):
-            return Decimal()
+            return float()
         if symbol not in self.short_positions:
             self.symbols.add(symbol)
             pos = Position(symbol=symbol, shares=shares, type="short")
@@ -836,8 +835,8 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        buy_fill_price: Decimal,
-        sell_fill_price: Decimal,
+        buy_fill_price: float,
+        sell_fill_price: float,
     ):
         """Exits any long and short positions for ``symbol`` at
         ``buy_fill_price`` and ``sell_fill_price``.
@@ -866,18 +865,18 @@ class Portfolio:
         """
         total_equity = self.cash
         total_market_value = total_equity
-        total_margin = Decimal()
+        total_margin = float()
         for sym in self.symbols:
             index = (sym, date)
             close = None
             if index in df.index:
                 close = to_decimal(df.loc[index][DataCol.CLOSE.value])
-            pos_long_shares = Decimal()
-            pos_short_shares = Decimal()
-            pos_equity = Decimal()
-            pos_market_value = Decimal()
-            pos_margin = Decimal()
-            pos_pnl = Decimal()
+            pos_long_shares = float()
+            pos_short_shares = float()
+            pos_equity = float()
+            pos_market_value = float()
+            pos_margin = float()
+            pos_pnl = float()
             if sym in self.long_positions:
                 pos = self.long_positions[sym]
                 if close is not None:
@@ -1067,7 +1066,7 @@ class Portfolio:
 
     def _trigger_bar_stop(
         self, stop: Stop, price_scope: PriceScope, entry: Entry
-    ) -> Optional[Decimal]:
+    ) -> Optional[float]:
         if stop.bars is None:
             raise ValueError("Bars not set on bar stop.")
         if entry.bars >= stop.bars:
@@ -1081,7 +1080,7 @@ class Portfolio:
 
     def _trigger_profit_or_loss_stop(
         self, stop: Stop, price_scope: PriceScope
-    ) -> Optional[Decimal]:
+    ) -> Optional[float]:
         if (
             stop.pos_type == "long"
             and (
@@ -1120,7 +1119,7 @@ class Portfolio:
 
     def _trigger_trailing_stop(
         self, stop: Stop, price_scope: PriceScope
-    ) -> Optional[Decimal]:
+    ) -> Optional[float]:
         fill_price = self._trigger_profit_or_loss_stop(stop, price_scope)
         if fill_price is not None:
             return fill_price

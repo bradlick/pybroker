@@ -11,7 +11,6 @@ import numpy as np
 import os
 import pandas as pd
 import pytest
-from decimal import Decimal
 from pybroker.cache import (
     clear_data_source_cache,
     clear_indicator_cache,
@@ -220,7 +219,7 @@ def pending_orders():
             symbol="SPY",
             created=np.datetime64("2020-01-05"),
             exec_date=np.datetime64("2020-01-10"),
-            shares=Decimal(100),
+            shares=float(100),
             limit_price=None,
             fill_price=PriceType.MIDDLE,
         ),
@@ -230,8 +229,8 @@ def pending_orders():
             symbol="AAPL",
             created=np.datetime64("2020-01-06"),
             exec_date=np.datetime64("2020-01-08"),
-            shares=Decimal(200),
-            limit_price=Decimal(99),
+            shares=float(200),
+            limit_price=float(99),
             fill_price=PriceType.AVERAGE,
         ),
     )

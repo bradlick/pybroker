@@ -11,7 +11,6 @@ import pytest
 import re
 from .fixtures import *
 from collections import deque
-from decimal import Decimal
 from pybroker.common import PriceType, StopType, to_datetime
 from pybroker.config import StrategyConfig
 from pybroker.context import (
@@ -91,11 +90,11 @@ def trades(dates, symbols):
         entry=100,
         exit=101,
         shares=100,
-        pnl=Decimal(100),
-        return_pct=Decimal(5),
-        agg_pnl=Decimal(100),
+        pnl=float(100),
+        return_pct=float(5),
+        agg_pnl=float(100),
         bars=1,
-        pnl_per_bar=Decimal(100),
+        pnl_per_bar=float(100),
         stop=None,
     )
 
@@ -481,7 +480,7 @@ def test_to_result_when_buy(ctx, symbol, date):
     assert result.date == date
     assert result.buy_fill_price == PriceType.AVERAGE
     assert result.buy_shares == 20
-    assert result.buy_limit_price == Decimal("99.99")
+    assert result.buy_limit_price == float("99.99")
     assert result.hold_bars == 2
     assert result.score == 7
     assert len(result.long_stops) == 1
@@ -509,7 +508,7 @@ def test_to_result_when_sell(ctx, symbol, date):
     assert result.date == date
     assert result.sell_fill_price == PriceType.HIGH
     assert result.sell_shares == 20
-    assert result.sell_limit_price == Decimal("110.11")
+    assert result.sell_limit_price == float("110.11")
     assert result.hold_bars == 2
     assert result.score == 7
     assert len(result.short_stops) == 1

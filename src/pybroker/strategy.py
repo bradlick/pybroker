@@ -16,7 +16,7 @@ from pybroker.common import (
     IndicatorSymbol,
     ModelSymbol,
     PriceType,
-    quantize,
+    #quantize,
     to_datetime,
     to_decimal,
     to_seconds,
@@ -55,7 +55,6 @@ from pybroker.slippage import SlippageModel
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
 from numpy.typing import NDArray
 from typing import (
     Callable,
@@ -487,10 +486,10 @@ class BacktestMixin:
         date: np.datetime64,
         ctx: ExecContext,
         exit_cover_fill_price: Union[
-            PriceType, Callable[[str, BarData], Union[int, float, Decimal]]
+            PriceType, Callable[[str, BarData], Union[int, float, float]]
         ],
         exit_sell_fill_price: Union[
-            PriceType, Callable[[str, BarData], Union[int, float, Decimal]]
+            PriceType, Callable[[str, BarData], Union[int, float, float]]
         ],
         price_scope: PriceScope,
     ):
@@ -689,9 +688,9 @@ class BacktestMixin:
 
     def _get_shares(
         self,
-        shares: Union[int, float, Decimal],
+        shares: Union[int, float, float],
         enable_fractional_shares: bool,
-    ) -> Decimal:
+    ) -> float:
         if enable_fractional_shares:
             return to_decimal(shares)
         else:
@@ -707,46 +706,20 @@ class BacktestMixin:
         pos_df = pd.DataFrame.from_records(
             portfolio.position_bars, columns=PositionBar._fields
         )
-        for col in (
-            "close",
-            "equity",
-            "market_value",
-            "margin",
-            "unrealized_pnl",
-        ):
-            pos_df[col] = quantize(pos_df, col)
+        pos_df.round({'close': 2, 'equity': 2, 'market_value': 2, 'margin': 2, 'unrealized_pnl': 2})
         pos_df.set_index(["symbol", "date"], inplace=True)
         portfolio_df = pd.DataFrame.from_records(
             portfolio.bars, columns=PortfolioBar._fields, index="date"
         )
-        for col in (
-            "cash",
-            "equity",
-            "margin",
-            "market_value",
-            "pnl",
-            "unrealized_pnl",
-            "fees",
-        ):
-            portfolio_df[col] = quantize(portfolio_df, col)
+        portfolio_df.round({'cash': 2, 'equity': 2, 'margin': 2, 'pnl': 2, 'unrealized_pnl': 2, 'fees': 2})
         orders_df = pd.DataFrame.from_records(
             portfolio.orders, columns=Order._fields, index="id"
         )
-        for col in ("limit_price", "fill_price", "fees"):
-            orders_df[col] = quantize(orders_df, col)
+        orders_df.round({'limit_price': 2, 'fill_price': 2, 'fees': 2})
         trades_df = pd.DataFrame.from_records(
             portfolio.trades, columns=Trade._fields, index="id"
         )
-        trades_df["bars"] = trades_df["bars"].astype(int)
-        for col in (
-            "entry",
-            "exit",
-            "pnl",
-            "return_pct",
-            "agg_pnl",
-            "pnl_per_bar",
-        ):
-            trades_df[col] = quantize(trades_df, col)
+        trades_df.round({'entry': 2, 'exit': 2, 'pnl': 2, 'return_pct': 2, 'agg_pnl': 2, 'pnl_per_bar': 2})
         shares_type = float if self._fractional_shares_enabled() else int
         pos_df["long_shares"] = pos_df["long_shares"].astype(shares_type)
         pos_df["short_shares"] = pos_df["short_shares"].astype(shares_type)
