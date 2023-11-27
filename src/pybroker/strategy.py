@@ -143,7 +143,6 @@ class BacktestMixin:
         after_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
         slippage_model: Optional[SlippageModel] = None,
-        enable_fractional_shares: bool = False,
         warmup: Optional[int] = None,
     ):
         r"""Backtests a ``set`` of :class:`.Execution`\ s that implement
@@ -166,8 +165,6 @@ class BacktestMixin:
             pos_size_handler: :class:`Callable` that sets position sizes when
                 placing orders for buy and sell signals.
             exit_dates: :class:`Mapping` of symbols to exit dates.
-            enable_fractional_shares: Whether to enable trading fractional
-                shares.
             warmup: Number of bars that need to pass before running the
                 executions.
 
@@ -182,7 +179,6 @@ class BacktestMixin:
                                 after_exec_fn=after_exec_fn,
                                 pos_size_handler=pos_size_handler,
                                 slippage_model=slippage_model,
-                                enable_fractional_shares=enable_fractional_shares,
                                 warmup=warmup
                             )
         try:
@@ -202,7 +198,6 @@ class BacktestMixin:
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
         final_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]] = None,
         slippage_model: Optional[SlippageModel] = None,
-        enable_fractional_shares: bool = False,
         warmup: Optional[int] = None,
         include_results: bool = False,
         results_stepwise: bool = False
@@ -224,7 +219,6 @@ class BacktestMixin:
                                 pos_size_handler=pos_size_handler, 
                                 final_exec_fn=final_exec_fn,
                                 slippage_model=slippage_model, 
-                                enable_fractional_shares=enable_fractional_shares, 
                                 warmup=warmup,
                                 include_results=include_results,
                                 results_stepwise=results_stepwise
@@ -313,7 +307,6 @@ class BacktestMixin:
         pos_size_handler: Optional[Callable[[PosSizeContext], None]],
         final_exec_fn: Optional[Callable[[Mapping[str, ExecContext]], None]],
         slippage_model: Optional[SlippageModel] = None, 
-        enable_fractional_shares: bool = False, 
         warmup: Optional[int] = None,
         include_results: bool = False,
         results_stepwise: bool = False
@@ -371,7 +364,6 @@ class BacktestMixin:
                     pending_order_scope=stack_ctx['pending_order_scope'],
                     buy_sched=stack_ctx['cover_sched'],
                     portfolio=stack_ctx['portfolio'],
-                    enable_fractional_shares=enable_fractional_shares,
                 )
         if is_sell_sched:
             self._place_sell_orders(
@@ -380,7 +372,6 @@ class BacktestMixin:
                     pending_order_scope=stack_ctx['pending_order_scope'],
                     sell_sched=stack_ctx['sell_sched'],
                     portfolio=stack_ctx['portfolio'],
-                    enable_fractional_shares=enable_fractional_shares,
                 )
         if is_buy_sched:
             self._place_buy_orders(
@@ -389,7 +380,6 @@ class BacktestMixin:
                     pending_order_scope=stack_ctx['pending_order_scope'],
                     buy_sched=stack_ctx['buy_sched'],
                     portfolio=stack_ctx['portfolio'],
-                    enable_fractional_shares=enable_fractional_shares,
                 )
         stack_ctx['portfolio'].capture_bar(date, stack_ctx['test_data'])
         if before_exec_fn is not None and stack_ctx['active_ctxs']:
@@ -589,7 +579,6 @@ class BacktestMixin:
         pending_order_scope: PendingOrderScope,
         buy_sched: dict[np.datetime64, list[ExecResult]],
         portfolio: Portfolio,
-        enable_fractional_shares: bool,
     ):
         buy_results = buy_sched[date]
         for result in buy_results:
@@ -602,7 +591,7 @@ class BacktestMixin:
                 continue
             pending_order_scope.remove(result.pending_order_id)
             buy_shares = self._get_shares(
-                result.buy_shares, enable_fractional_shares
+                result.buy_shares
             )
             fill_price = price_scope.fetch(
                 result.symbol, result.buy_fill_price
@@ -641,7 +630,6 @@ class BacktestMixin:
         pending_order_scope: PendingOrderScope,
         sell_sched: dict[np.datetime64, list[ExecResult]],
         portfolio: Portfolio,
-        enable_fractional_shares: bool,
     ):
         sell_results = sell_sched[date]
         for result in sell_results:
@@ -654,7 +642,7 @@ class BacktestMixin:
                 continue
             pending_order_scope.remove(result.pending_order_id)
             sell_shares = self._get_shares(
-                result.sell_shares, enable_fractional_shares
+                result.sell_shares
             )
             fill_price = price_scope.fetch(
                 result.symbol, result.sell_fill_price
@@ -689,11 +677,7 @@ class BacktestMixin:
     def _get_shares(
         self,
         shares: Union[int, float, float],
-        enable_fractional_shares: bool,
     ) -> float:
-        if enable_fractional_shares:
-            return to_decimal(shares)
-        else:
             return to_decimal(int(shares))
     
     def _to_test_result(
@@ -720,11 +704,6 @@ class BacktestMixin:
             portfolio.trades, columns=Trade._fields, index="id"
         )
         trades_df.round({'entry': 2, 'exit': 2, 'pnl': 2, 'return_pct': 2, 'agg_pnl': 2, 'pnl_per_bar': 2})
-        shares_type = float if self._fractional_shares_enabled() else int
-        pos_df["long_shares"] = pos_df["long_shares"].astype(shares_type)
-        pos_df["short_shares"] = pos_df["short_shares"].astype(shares_type)
-        orders_df["shares"] = orders_df["shares"].astype(shares_type)
-        trades_df["shares"] = trades_df["shares"].astype(shares_type)
         eval_result = self.evaluate(
             portfolio_df=portfolio_df,
             trades_df=trades_df,
@@ -1383,7 +1362,6 @@ class Strategy(
                 self._config.initial_cash,
                 self._config.fee_mode,
                 self._config.fee_amount,
-                self._fractional_shares_enabled(),
                 self._config.max_long_positions,
                 self._config.max_short_positions,
             )
@@ -1416,11 +1394,6 @@ class Strategy(
                 for day in set(days)  # type: ignore[arg-type]
             )
         )  # type: ignore[return-value]
-
-    def _fractional_shares_enabled(self):
-        return self._config.enable_fractional_shares or isinstance(
-            self._data_source, AlpacaCrypto
-        )
 
     def _run_walkforward_stepwise(
         self,
@@ -1486,7 +1459,6 @@ class Strategy(
                                 after_exec_fn=self._after_exec_fn,
                                 pos_size_handler=self._pos_size_handler,
                                 slippage_model=self._slippage_model,
-                                enable_fractional_shares=self._fractional_shares_enabled(),
                                 warmup=warmup,
                                 include_results=True,
                                 results_stepwise=results_stepwise

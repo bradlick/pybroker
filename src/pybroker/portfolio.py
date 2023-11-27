@@ -88,7 +88,7 @@ class Entry:
     id: int
     date: np.datetime64
     symbol: str
-    shares: float
+    shares: int
     price: float
     type: Literal["long", "short"]
     bars: int = field(default=0)
@@ -120,7 +120,7 @@ class Position:
         bars: Current number of bars since entry.
     """
     symbol: str
-    shares: float
+    shares: int
     type: Literal["long", "short"]
     close: float = field(default_factory=float)
     equity: float = field(default_factory=float)
@@ -159,7 +159,7 @@ class Trade(NamedTuple):
     exit_date: np.datetime64
     entry: float
     exit: float
-    shares: float
+    shares: int
     pnl: float
     return_pct: float
     agg_pnl: float
@@ -186,7 +186,7 @@ class Order(NamedTuple):
     type: Literal["buy", "sell"]
     symbol: str
     date: np.datetime64
-    shares: float
+    shares: int
     limit_price: Optional[float]
     fill_price: float
     fees: float
@@ -234,8 +234,8 @@ class PositionBar(NamedTuple):
 
     symbol: str
     date: np.datetime64
-    long_shares: float
-    short_shares: float
+    long_shares: int
+    short_shares: int
     close: float
     equity: float
     market_value: float
@@ -244,8 +244,8 @@ class PositionBar(NamedTuple):
 
 
 class _OrderResult(NamedTuple):
-    filled_shares: float
-    rem_shares: float
+    filled_shares: int
+    rem_shares: int
 
 
 def _calculate_pnl(
@@ -286,7 +286,6 @@ class Portfolio:
             the amount of equity held in cash and long positions added together
             with the unrealized PnL of all open short positions.
         fees: Current brokerage fees.
-        enable_fractional_shares: Whether to enable trading fractional shares.
         orders: ``deque`` of all filled orders, sorted in ascending
             chronological order.
         margin: Current amount of margin held in open positions.
@@ -309,7 +308,6 @@ class Portfolio:
         cash: float,
         fee_mode: Optional[FeeMode] = None,
         fee_amount: Optional[float] = None,
-        enable_fractional_shares: bool = False,
         max_long_positions: Optional[int] = None,
         max_short_positions: Optional[int] = None,
     ):
@@ -319,7 +317,6 @@ class Portfolio:
         self._fee_amount: Optional[float] = (
             None if fee_amount is None else to_decimal(fee_amount)
         )
-        self._enable_fractional_shares = enable_fractional_shares
         self.equity: float = self.cash
         self.market_value: float = self.cash
         self.fees = float()
@@ -343,7 +340,7 @@ class Portfolio:
         self._entry_id: int = 0
         self._trade_id: int = 0
 
-    def _calculate_fees(self, fill_price: float, shares: float) -> float:
+    def _calculate_fees(self, fill_price: float, shares: int) -> float:
         fees = float()
         if self._fee_mode is None or self._fee_amount is None:
             return fees
@@ -374,7 +371,7 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: float,
+        shares: int,
         price: float,
         type: Literal["long", "short"],
         pos: Position,
@@ -398,7 +395,7 @@ class Portfolio:
         type: Literal["buy", "sell"],
         limit_price: Optional[float],
         fill_price: float,
-        shares: float,
+        shares: int,
     ) -> Order:
         self._order_id += 1
         fees = self._calculate_fees(fill_price, shares)
@@ -424,7 +421,7 @@ class Portfolio:
         exit_date: np.datetime64,
         entry_price: float,
         exit_price: float,
-        shares: float,
+        shares: int,
         pnl: float,
         return_pct: float,
         agg_pnl: float,
@@ -492,11 +489,9 @@ class Portfolio:
             if stop.id in self._stop_data:
                 del self._stop_data[stop.id]
 
-    def _clamp_shares(self, fill_price: float, shares: float) -> float:
+    def _clamp_shares(self, fill_price: float, shares: int) -> int:
         max_shares = (
-            float(self.cash / fill_price)
-            if self._enable_fractional_shares
-            else float(self.cash // fill_price)
+            float(self.cash // fill_price)
         )
         return min(shares, max_shares)
 
@@ -504,7 +499,7 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: float,
+        shares: int,
         fill_price: float,
         limit_price: Optional[float] = None,
         stops: Optional[Iterable[Stop]] = None,
@@ -555,7 +550,7 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: float,
+        shares: int,
         fill_price: float,
     ) -> _OrderResult:
         if symbol not in self.short_positions:
@@ -587,7 +582,7 @@ class Portfolio:
         date: np.datetime64,
         pos: Position,
         entry: Entry,
-        shares: float,
+        shares: int,
         fill_price: float,
         stop_type: Optional[StopType],
     ):
@@ -620,7 +615,7 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: float,
+        shares: int,
         fill_price: float,
         limit_price: Optional[float],
         stops: Optional[Iterable[Stop]],
@@ -670,7 +665,7 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: float,
+        shares: int,
         fill_price: float,
         limit_price: Optional[float] = None,
         stops: Optional[Iterable[Stop]] = None,
@@ -721,7 +716,7 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: float,
+        shares: int,
         fill_price: float,
     ) -> _OrderResult:
         if symbol not in self.long_positions:
@@ -751,7 +746,7 @@ class Portfolio:
         date: np.datetime64,
         pos: Position,
         entry: Entry,
-        shares: float,
+        shares: int,
         fill_price: float,
         stop_type: Optional[StopType],
     ):
@@ -800,7 +795,7 @@ class Portfolio:
         self,
         date: np.datetime64,
         symbol: str,
-        shares: float,
+        shares: int,
         fill_price: float,
         stops: Optional[Iterable[Stop]],
     ) -> float:
