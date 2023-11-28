@@ -10,6 +10,10 @@ import numpy as np
 import pandas as pd
 from pybroker.scope import StaticScope
 from pybroker.vect import highv
+from pybroker.portfolio import (
+    Trade,
+    PortfolioBar,
+)
 from collections import deque
 from dataclasses import dataclass, field
 from numba import njit
@@ -512,8 +516,15 @@ def upi(
         r[i] = (values[i + 1] - values[i]) / values[i] * 100
     return float(np.mean(r) / ui)
 
+
+def split_profits_losses(values: iter):
+    profits = np.fromiter(filter(lambda value: value > 0, values), dtype=float)
+    losses = np.fromiter(filter(lambda value: value < 0, values), dtype=float)
+    return profits,losses
+
+
 #@njit(fastmath=True)
-def win_loss_rate(pnls: NDArray[np.float_]) -> tuple[float, float]:
+def win_loss_rate(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes the win rate and loss rate as percentages.
 
     Args:
@@ -522,16 +533,15 @@ def win_loss_rate(pnls: NDArray[np.float_]) -> tuple[float, float]:
     Returns:
         ``tuple[float, float]`` of win rate and loss rate.
     """
-    pnls = pnls[pnls != 0]
-    n = len(pnls)
+    n = profits.size + losses.size
     if not n:
         return 0, 0
-    win_rate = len(pnls[pnls > 0]) / n * 100
-    loss_rate = len(pnls[pnls < 0]) / n * 100
+    win_rate = profits.size / n * 100
+    loss_rate = losses.size / n * 100
     return win_rate, loss_rate
 
 #@njit(fastmath=True)
-def winning_losing_trades(pnls: NDArray[np.float_]) -> tuple[int, int]:
+def winning_losing_trades(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[int, int]:
     """Returns the number of winning and losing trades.
 
     Args:
@@ -540,13 +550,10 @@ def winning_losing_trades(pnls: NDArray[np.float_]) -> tuple[int, int]:
     Returns:
         ``tuple[int, int]`` containing numbers of winning and losing trades.
     """
-    pnls = pnls[pnls != 0]
-    if not len(pnls):
-        return 0, 0
-    return len(pnls[pnls > 0]), len(pnls[pnls < 0])
+    return profits.size,losses.size
 
 #@njit(fastmath=True)
-def total_profit_loss(pnls: NDArray[np.float_]) -> tuple[float, float]:
+def total_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes total profit and loss.
 
     Args:
@@ -555,15 +562,13 @@ def total_profit_loss(pnls: NDArray[np.float_]) -> tuple[float, float]:
     Returns:
         ``tuple[float, float]`` of total profit and total loss.
     """
-    profits = pnls[pnls > 0]
-    losses = pnls[pnls < 0]
     return (
-        np.sum(profits) if len(profits) else 0,
-        np.sum(losses) if len(losses) else 0,
+        np.sum(profits) if profits.size else 0,
+        np.sum(losses) if losses.size else 0,
     )
 
 #@njit(fastmath=True)
-def avg_profit_loss(pnls: NDArray[np.float_]) -> tuple[float, float]:
+def avg_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes the average profit and average loss per trade.
 
     Args:
@@ -572,16 +577,13 @@ def avg_profit_loss(pnls: NDArray[np.float_]) -> tuple[float, float]:
     Returns:
         ``tuple[float, float]`` of average profit and average loss.
     """
-
-    profits = pnls[pnls > 0]
-    losses = pnls[pnls < 0]
     return (
-        np.mean(profits) if len(profits) else 0,
-        np.mean(losses) if len(losses) else 0,
+        np.mean(profits) if profits.size else 0,
+        np.mean(losses) if losses.size else 0,
     )
 
 #@njit(fastmath=True)
-def largest_win_loss(pnls: NDArray[np.float_]) -> tuple[float, float]:
+def largest_win_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes the largest profit and largest loss of all trades.
 
     Args:
@@ -590,11 +592,9 @@ def largest_win_loss(pnls: NDArray[np.float_]) -> tuple[float, float]:
     Returns:
         ``tuple[float, float]`` of largest profit and largest loss.
     """
-    profits = pnls[pnls > 0]
-    losses = pnls[pnls < 0]
     return (
-        np.max(profits) if len(profits) else 0,
-        np.min(losses) if len(losses) else 0,
+        np.max(profits) if profits.size else 0,
+        np.min(losses) if losses.size else 0,
     )
 
 
@@ -846,8 +846,8 @@ class EvaluateMixin:
 
     def evaluate(
         self,
-        portfolio_df: pd.DataFrame,
-        trades_df: pd.DataFrame,
+        portfolio_df: deque[PortfolioBar],
+        trades_df: deque[Trade],
         calc_bootstrap: bool,
         bootstrap_sample_size: int,
         bootstrap_samples: int,
@@ -870,35 +870,36 @@ class EvaluateMixin:
         Returns:
             :class:`.EvalResult` containing evaluation metrics.
         """
-        market_values = portfolio_df["market_value"].to_numpy()
-        fees = portfolio_df["fees"].to_numpy()
-        bar_returns = self._calc_bar_returns(portfolio_df)
-        bar_changes = self._calc_bar_changes(portfolio_df)
+        market_values = np.fromiter(map(lambda portfolio: portfolio.market_value, portfolio_df), dtype=float)
+        fees = np.fromiter(map(lambda portfolio: portfolio.fees, portfolio_df), dtype=float)
+        bar_returns = self._calc_bar_returns(market_values)
+        bar_changes = self._calc_bar_changes(market_values)
         if (
-            not len(market_values)
-            or not len(bar_returns)
-            or not len(bar_changes)
+            not market_values.size
+            or not bar_returns.size
+            or not bar_changes.size
         ):
             return EvalResult(EvalMetrics(), None)
-        pnls = trades_df["pnl"].to_numpy()
-        return_pcts = trades_df["return_pct"].to_numpy()
-        bars = trades_df["bars"].to_numpy()
-        winning_bars = trades_df[trades_df["pnl"] > 0]["bars"].to_numpy()
-        losing_bars = trades_df[trades_df["pnl"] < 0]["bars"].to_numpy()
-        largest_win = trades_df[trades_df["pnl"] == trades_df["pnl"].max()]
-        largest_win_pct = (
-            0 if largest_win.empty else largest_win["return_pct"].values[0]
-        )
-        largest_win_bars = (
-            0 if largest_win.empty else largest_win["bars"].values[0]
-        )
-        largest_loss = trades_df[trades_df["pnl"] == trades_df["pnl"].min()]
-        largest_loss_pct = (
-            0 if largest_loss.empty else largest_loss["return_pct"].values[0]
-        )
-        largest_loss_bars = (
-            0 if largest_loss.empty else largest_loss["bars"].values[0]
-        )
+        pnls = np.fromiter(map(lambda trade: trade.pnl, trades_df), dtype=float)
+        return_pcts = np.fromiter(map(lambda trade: trade.return_pct, trades_df), dtype=float)
+        bars = np.fromiter(map(lambda trade: trade.bars, trades_df), dtype=int)
+        winning_trades = filter(lambda trade: trade.pnl > 0, trades_df)
+        winning_bars = np.fromiter(map(lambda trade: trade.bars, winning_trades), dtype=int)
+        losing_trades = filter(lambda trade: trade.pnl < 0, trades_df)
+        losing_bars = np.fromiter(map(lambda trade: trade.bars, losing_trades), dtype=int)
+        
+        largest_win_pct = 0
+        largest_win_bars = 0
+        largest_loss_pct=0
+        largest_loss_bars=0
+        if len(trades_df):
+            largest_win = max(trades_df, key=lambda trade: trade.pnl)
+            largest_win_pct = largest_win.return_pct
+            largest_win_bars = largest_win.bars
+            largest_loss = min(trades_df, key=lambda trade: trade.pnl)
+            largest_loss_pct=largest_loss.return_pct
+            largest_loss_bars=largest_loss.bars
+
         metrics = self._calc_eval_metrics(
             market_values,
             bar_changes,
@@ -947,25 +948,38 @@ class EvaluateMixin:
         logger.calc_bootstrap_metrics_completed()
         return EvalResult(metrics, bootstrap)
 
-    def _calc_bar_returns(self, df: pd.DataFrame) -> NDArray[np.float32]:
-        prev_market_value = df["market_value"].shift(1)
-        returns = (df["market_value"] - prev_market_value) / prev_market_value
-        return returns.dropna().to_numpy()
+    def _calc_bar_returns(self, market_values: NDArray[np.float32]) -> NDArray[np.float32]:
+        prev_market_value = self._shift(market_values, 1)
+        returns = (market_values - prev_market_value) / prev_market_value
+        return returns[~np.isnan(returns)]
 
-    def _calc_bar_changes(self, df: pd.DataFrame) -> NDArray[np.float32]:
-        changes = df["market_value"] - df["market_value"].shift(1)
-        return changes.dropna().to_numpy()
+    def _calc_bar_changes(self, market_values: NDArray[np.float32]) -> NDArray[np.float32]:
+        prev_market_value = self._shift(market_values, 1)
+        changes = market_values - prev_market_value
+        return changes[~np.isnan(changes)]
+
+    def _shift(self, arr, num, fill_value=np.nan):
+        result = np.empty_like(arr)
+        if num > 0:
+            result[:num] = fill_value
+            result[num:] = arr[:-num]
+        elif num < 0:
+            result[num:] = fill_value
+            result[:num] = arr[-num:]
+        else:
+            result[:] = arr
+        return result
 
     def _calc_eval_metrics(
         self,
         market_values: NDArray[np.float_],
-        bar_changes: NDArray[np.float_],
-        bar_returns: NDArray[np.float_],
-        pnls: NDArray[np.float_],
-        return_pcts: NDArray[np.float_],
-        bars: NDArray[np.int_],
-        winning_bars: NDArray[np.int_],
-        losing_bars: NDArray[np.int_],
+        bar_changes:  NDArray[np.float_],
+        bar_returns:  NDArray[np.float_],
+        pnls:  NDArray[np.float_],
+        return_pcts:  NDArray[np.float_],
+        bars:  NDArray[np.int_],
+        winning_bars:  NDArray[np.int_],
+        losing_bars:  NDArray[np.int_],
         largest_win_num_bars: int,
         largest_win_pct: float,
         largest_loss_num_bars: int,
@@ -1004,25 +1018,27 @@ class EvaluateMixin:
         unrealized_pnl = 0.0
         max_wins = 0
         max_losses = 0
-        if len(pnls):
-            largest_win, largest_loss = largest_win_loss(pnls)
-            win_rate, loss_rate = win_loss_rate(pnls)
-            winning_trades, losing_trades = winning_losing_trades(pnls)
-            avg_profit, avg_loss = avg_profit_loss(pnls)
-            avg_profit_pct, avg_loss_pct = avg_profit_loss(return_pcts)
-            total_profit, total_loss = total_profit_loss(pnls)
+        if pnls.size:
+            pnl_profits, pnl_losses = split_profits_losses(pnls)
+            largest_win, largest_loss = largest_win_loss(pnl_profits, pnl_losses)
+            win_rate, loss_rate = win_loss_rate(pnl_profits, pnl_losses)
+            winning_trades, losing_trades = winning_losing_trades(pnl_profits, pnl_losses)
+            avg_profit, avg_loss = avg_profit_loss(pnl_profits, pnl_losses)
+            return_pct_profits, return_pct_losses = split_profits_losses(return_pcts)
+            avg_profit_pct, avg_loss_pct = avg_profit_loss(return_pct_profits, return_pct_losses)
+            total_profit, total_loss = total_profit_loss(pnl_profits, pnl_losses)
             max_wins, max_losses = max_wins_losses(pnls)
             total_pnl = float(np.sum(pnls))
             # Check length to avoid "Mean of empty slice" warning.
-            if len(pnls):
+            if pnls.size:
                 avg_pnl = float(np.mean(pnls))
-            if len(return_pcts):
+            if return_pcts.size:
                 avg_return_pct = float(np.mean(return_pcts))
-            if len(bars):
+            if bars.size:
                 avg_trade_bars = float(np.mean(bars))
-            if len(winning_bars):
+            if winning_bars.size:
                 avg_winning_trade_bars = float(np.mean(winning_bars))
-            if len(losing_bars):
+            if losing_bars.size:
                 avg_losing_trade_bars = float(np.mean(losing_bars))
         total_return_pct = total_return_percent(
             initial_value=market_values[0], pnl=total_pnl

@@ -16,7 +16,6 @@ from pybroker.common import (
     IndicatorSymbol,
     ModelSymbol,
     PriceType,
-    #quantize,
     to_datetime,
     to_decimal,
     to_seconds,
@@ -96,18 +95,16 @@ class TestResult:
         orders: :class:`pandas.DataFrame` of all orders that were placed.
         trades: :class:`pandas.DataFrame` of all trades that were made.
         metrics: Evaluation metrics.
-        metrics_df: :class:`pandas.DataFrame` of evaluation metrics.
         bootstrap: Randomized bootstrap evaluation metrics.
     """
 
     start_date: datetime
     end_date: datetime
-    portfolio: pd.DataFrame
-    positions: pd.DataFrame
-    orders: pd.DataFrame
-    trades: pd.DataFrame
+    portfolio: deque[PortfolioBar]
+    positions: deque[PositionBar]
+    orders: deque[Order]
+    trades: deque[Trade]
     metrics: EvalMetrics
-    metrics_df: pd.DataFrame
     bootstrap: Optional[BootstrapResult]
 
 class Execution(NamedTuple):
@@ -687,46 +684,22 @@ class BacktestMixin:
         portfolio: Portfolio,
         calc_bootstrap: bool,
     ) -> TestResult:
-        pos_df = pd.DataFrame.from_records(
-            portfolio.position_bars, columns=PositionBar._fields
-        )
-        pos_df.round({'close': 2, 'equity': 2, 'market_value': 2, 'margin': 2, 'unrealized_pnl': 2})
-        pos_df.set_index(["symbol", "date"], inplace=True)
-        portfolio_df = pd.DataFrame.from_records(
-            portfolio.bars, columns=PortfolioBar._fields, index="date"
-        )
-        portfolio_df.round({'cash': 2, 'equity': 2, 'margin': 2, 'pnl': 2, 'unrealized_pnl': 2, 'fees': 2})
-        orders_df = pd.DataFrame.from_records(
-            portfolio.orders, columns=Order._fields, index="id"
-        )
-        orders_df.round({'limit_price': 2, 'fill_price': 2, 'fees': 2})
-        trades_df = pd.DataFrame.from_records(
-            portfolio.trades, columns=Trade._fields, index="id"
-        )
-        trades_df.round({'entry': 2, 'exit': 2, 'pnl': 2, 'return_pct': 2, 'agg_pnl': 2, 'pnl_per_bar': 2})
         eval_result = self.evaluate(
-            portfolio_df=portfolio_df,
-            trades_df=trades_df,
+            portfolio_df=portfolio.bars,
+            trades_df=portfolio.trades,
             calc_bootstrap=calc_bootstrap,
             bootstrap_sample_size=self._config.bootstrap_sample_size,
             bootstrap_samples=self._config.bootstrap_samples,
             bars_per_year=self._config.bars_per_year,
         )
-        metrics = [
-            (k, v)
-            for k, v in dataclasses.asdict(eval_result.metrics).items()
-            if v is not None
-        ]
-        metrics_df = pd.DataFrame(metrics, columns=["name", "value"])
         return TestResult(
             start_date=start_date,
             end_date=end_date,
-            portfolio=portfolio_df,
-            positions=pos_df,
-            orders=orders_df,
-            trades=trades_df,
+            portfolio=portfolio.bars,
+            positions=portfolio.position_bars,
+            orders=portfolio.orders,
+            trades=portfolio.trades,
             metrics=eval_result.metrics,
-            metrics_df=metrics_df,
             bootstrap=eval_result.bootstrap,
         )
 

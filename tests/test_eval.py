@@ -13,6 +13,7 @@ import os
 import pandas as pd
 import pytest
 import re
+from datetime import datetime
 from pybroker.eval import (
     EvalMetrics,
     EvaluateMixin,
@@ -39,6 +40,9 @@ from pybroker.eval import (
     upi,
     win_loss_rate,
     winning_losing_trades,
+    split_profits_losses,
+    Trade,
+    PortfolioBar
 )
 from typing import get_type_hints
 
@@ -69,14 +73,14 @@ def calc_bootstrap(request):
 @pytest.fixture()
 def portfolio_df():
     return joblib.load(
-        os.path.join(os.path.dirname(__file__), "testdata/portfolio_df.joblib")
+        os.path.join(os.path.dirname(__file__), "testdata/portfolio.joblib")
     )
 
 
 @pytest.fixture()
 def trades_df():
     return joblib.load(
-        os.path.join(os.path.dirname(__file__), "testdata/trades_df.joblib")
+        os.path.join(os.path.dirname(__file__), "testdata/trades.joblib")
     )
 
 
@@ -343,7 +347,8 @@ def test_upi_when_invalid_period_then_error(values, period):
 )
 def test_win_loss_rate(values, expected_win_rate, expected_loss_rate):
     pnls = np.array(values)
-    win_rate, loss_rate = win_loss_rate(pnls)
+    profits, losses = split_profits_losses(pnls)
+    win_rate, loss_rate = win_loss_rate(profits, losses)
     assert win_rate == expected_win_rate
     assert loss_rate == expected_loss_rate
 
@@ -362,7 +367,8 @@ def test_winning_losing_trades(
     values, expected_winning_trades, expected_losing_trades
 ):
     pnls = np.array(values)
-    winning_trades, losing_trades = winning_losing_trades(pnls)
+    profits, losses = split_profits_losses(pnls)
+    winning_trades, losing_trades = winning_losing_trades(profits, losses)
     assert winning_trades == expected_winning_trades
     assert losing_trades == expected_losing_trades
 
@@ -379,7 +385,8 @@ def test_winning_losing_trades(
 )
 def test_total_profit_loss(values, expected_profit, expected_loss):
     pnls = np.array(values)
-    profit, loss = total_profit_loss(pnls)
+    profits, losses = split_profits_losses(pnls)
+    profit, loss = total_profit_loss(profits, losses)
     assert profit == expected_profit
     assert round(loss, 2) == expected_loss
 
@@ -396,7 +403,8 @@ def test_total_profit_loss(values, expected_profit, expected_loss):
 )
 def test_avg_profit_loss(values, expected_profit, expected_loss):
     pnls = np.array(values)
-    profit, loss = avg_profit_loss(pnls)
+    profits, losses = split_profits_losses(pnls)
+    profit, loss = avg_profit_loss(profits, losses)
     assert profit == expected_profit
     assert round(loss, 2) == expected_loss
 
@@ -413,7 +421,8 @@ def test_avg_profit_loss(values, expected_profit, expected_loss):
 )
 def test_largest_win_loss(values, expected_win, expected_loss):
     pnls = np.array(values)
-    win, loss = largest_win_loss(pnls)
+    profits, losses = split_profits_losses(pnls)
+    win, loss = largest_win_loss(profits, losses)
     assert win == expected_win
     assert loss == expected_loss
 
@@ -502,6 +511,28 @@ class TestEvaluateMixin:
         expected_sharpe,
         expected_sortino,
     ):
+        # print(portfolio_df)
+        # print(portfolio_df.keys())
+        # portfolio = deque[PortfolioBar]([])
+        # for id, bar in portfolio_df.iterrows():
+        #     portfolio.append(PortfolioBar(
+        #                         date=id,
+        #                         cash=bar['cash'],
+        #                         equity=bar['equity'],
+        #                         margin=bar['margin'],
+        #                         market_value=bar['market_value'],
+        #                         pnl=bar['pnl'],
+        #                         unrealized_pnl=bar['unrealized_pnl'],
+        #                         fees=bar['fees'],
+        #                     ))
+        # print(portfolio)
+        # joblib.dump(
+        #     portfolio,
+        #     os.path.join(os.path.dirname(__file__), "testdata/portfolio.joblib")
+        # )
+            
+        # assert False
+
         mixin = EvaluateMixin()
         result = mixin.evaluate(
             portfolio_df,
@@ -593,7 +624,16 @@ class TestEvaluateMixin:
     def test_evaluate_when_portfolio_empty(self, trades_df, calc_bootstrap):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            pd.DataFrame(columns=["market_value", "fees"]),
+            [PortfolioBar(
+                market_value=0,
+                fees=0,
+                date=datetime.fromtimestamp(111111111111), 
+                cash=0, 
+                equity=0, 
+                margin=0, 
+                pnl=0,
+                unrealized_pnl=0,
+            )],
             trades_df,
             calc_bootstrap,
             bootstrap_sample_size=10,
@@ -618,7 +658,16 @@ class TestEvaluateMixin:
     ):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            pd.DataFrame([[1000, 0]], columns=["market_value", "fees"]),
+            [PortfolioBar(
+                market_value=1000,
+                fees=0,
+                date=datetime.fromtimestamp(111111111111), 
+                cash=0, 
+                equity=0, 
+                margin=0, 
+                pnl=0,
+                unrealized_pnl=0,
+            )],
             trades_df,
             calc_bootstrap,
             bootstrap_sample_size=10,
@@ -640,9 +689,26 @@ class TestEvaluateMixin:
 
     def test_evaluate_when_trades_empty(self, portfolio_df, calc_bootstrap):
         mixin = EvaluateMixin()
+        empty_trades = [Trade(
+                            id=1,
+                            type="long",
+                            symbol=[],
+                            entry_date=[],
+                            exit_date=[],
+                            entry=0,
+                            exit=0,
+                            shares=0,
+                            pnl=float(0),
+                            return_pct=float(0),
+                            agg_pnl=float(0),
+                            bars=0,
+                            pnl_per_bar=float(0),
+                            stop=None,
+                        )
+                    ]
         result = mixin.evaluate(
             portfolio_df,
-            pd.DataFrame(columns=["pnl", "return_pct", "bars"]),
+            empty_trades,
             calc_bootstrap,
             bootstrap_sample_size=10,
             bootstrap_samples=100,
