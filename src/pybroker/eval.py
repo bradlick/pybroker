@@ -662,8 +662,11 @@ def annual_total_return_percent(
     ) * 100
 
 # njit fails with error numba.core.errors.TypingError
+#TODO: very slow
 def r_squared(values: NDArray[np.float_]) -> float:
     """Computes R-squared of ``values``."""
+    return 0
+
     n = len(values)
     if not n:
         return 0
