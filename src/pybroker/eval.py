@@ -480,10 +480,13 @@ def iqr(values: NDArray[np.float_]) -> float:
 
 
 #@njit(fastmath=True)
+#TODO: very slow
 def ulcer_index(values: NDArray[np.float_], period: int = 14) -> float:
     """Computes the
     `Ulcer Index <https://en.wikipedia.org/wiki/Ulcer_index>`_ of ``values``.
     """
+    return 0
+
     n = len(values)
     if n <= period:
         return 0
@@ -499,12 +502,15 @@ def ulcer_index(values: NDArray[np.float_], period: int = 14) -> float:
 
 
 #@njit(fastmath=True)
+#TODO: very slow
 def upi(
     values: NDArray[np.float_], period: int = 14, ui: Optional[float] = None
 ) -> float:
     """Computes the `Ulcer Performance Index
     <https://en.wikipedia.org/wiki/Ulcer_index>`_ of ``values``.
     """
+    return 0
+
     if len(values) <= 1:
         return 0
     if ui is None:

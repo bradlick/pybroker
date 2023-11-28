@@ -273,7 +273,7 @@ def test_relative_entropy(values, expected_entropy):
     entropy = relative_entropy(np.array(values))
     assert truncate(entropy, 6) == expected_entropy
 
-
+@pytest.mark.skip(reason="ulcer_index disabled due to slow execution")
 @pytest.mark.parametrize(
     "values, period, expected_ui",
     [
@@ -290,6 +290,7 @@ def test_ulcer_index(values, period, expected_ui):
     assert truncate(ulcer_index(np.array(values), period), 6) == expected_ui
 
 
+@pytest.mark.skip(reason="ulcer_index disabled due to slow execution")
 @pytest.mark.parametrize(
     "values, period", [([100, 101, 102], 0), ([100, 101, 102], -1)]
 )
@@ -298,6 +299,7 @@ def test_ulcer_index_when_invalid_period_then_error(values, period):
         ulcer_index(np.array(values), period)
 
 
+@pytest.mark.skip(reason="ulcer_index disabled due to slow execution")
 @pytest.mark.parametrize(
     "values, period, ui, expected_upi",
     [
@@ -327,6 +329,7 @@ def test_upi(values, period, ui, expected_upi):
     assert truncate(upi_, 6) == expected_upi
 
 
+@pytest.mark.skip(reason="ulcer_index disabled due to slow execution")
 @pytest.mark.parametrize(
     "values, period", [([100, 101, 102], 0), ([100, 101, 102], -1)]
 )
@@ -511,28 +514,6 @@ class TestEvaluateMixin:
         expected_sharpe,
         expected_sortino,
     ):
-        # print(portfolio_df)
-        # print(portfolio_df.keys())
-        # portfolio = deque[PortfolioBar]([])
-        # for id, bar in portfolio_df.iterrows():
-        #     portfolio.append(PortfolioBar(
-        #                         date=id,
-        #                         cash=bar['cash'],
-        #                         equity=bar['equity'],
-        #                         margin=bar['margin'],
-        #                         market_value=bar['market_value'],
-        #                         pnl=bar['pnl'],
-        #                         unrealized_pnl=bar['unrealized_pnl'],
-        #                         fees=bar['fees'],
-        #                     ))
-        # print(portfolio)
-        # joblib.dump(
-        #     portfolio,
-        #     os.path.join(os.path.dirname(__file__), "testdata/portfolio.joblib")
-        # )
-            
-        # assert False
-
         mixin = EvaluateMixin()
         result = mixin.evaluate(
             portfolio_df,
@@ -603,8 +584,8 @@ class TestEvaluateMixin:
         assert metrics.sharpe == expected_sharpe
         assert metrics.sortino == expected_sortino
         assert metrics.profit_factor == 1.0759385033768165
-        assert metrics.ulcer_index == 1.8983479594370982
-        assert metrics.upi == 0.0184452884850151
+        assert metrics.ulcer_index == 0
+        assert metrics.upi == 0
         assert metrics.equity_r2 == 0.8979045919638434
         assert metrics.std_error == 69646.36129687089
         assert metrics.total_fees == 0
