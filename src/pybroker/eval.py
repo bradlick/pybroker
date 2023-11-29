@@ -21,7 +21,7 @@ from numpy.typing import NDArray
 from typing import Callable, NamedTuple, Optional
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def normal_cdf(z: float) -> float:
     """Computes the CDF of the standard normal distribution."""
     zz = np.fabs(z)
@@ -35,7 +35,7 @@ def normal_cdf(z: float) -> float:
     return 1 - pdf * poly if z > 0 else pdf * poly
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def inverse_normal_cdf(p: float) -> float:
     """Computes the inverse CDF of the standard normal distribution."""
     pp = p if p <= 0.5 else 1 - p
@@ -68,7 +68,7 @@ class BootConfIntervals(NamedTuple):
     high_10: float
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def bca_boot_conf(
     x: NDArray[np.float_],
     n: int,
@@ -171,7 +171,7 @@ def bca_boot_conf(
     return BootConfIntervals(low_2p5, high_2p5, low_5, high_5, low_10, high_10)
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def profit_factor(
     changes: NDArray[np.float_], use_log: bool = False
 ) -> np.floating:
@@ -195,7 +195,7 @@ def profit_factor(
         return np.divide(numer, denom)
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def log_profit_factor(changes: NDArray[np.float_]) -> np.floating:
     """Computes the log transformed profit factor, which is the ratio of gross
     profit to gross loss.
@@ -206,7 +206,7 @@ def log_profit_factor(changes: NDArray[np.float_]) -> np.floating:
     return profit_factor(changes, use_log=True)
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def sharpe_ratio(
     changes: NDArray[np.float_],
     obs: Optional[int] = None,
@@ -232,7 +232,7 @@ def sharpe_ratio(
         sr *= np.sqrt(obs)
     return sr
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def sortino_ratio(
     changes: NDArray[np.float_], obs: Optional[int] = None
 ) -> float:
@@ -247,7 +247,7 @@ def sortino_ratio(
     """
     return float(sharpe_ratio(changes, obs, downside_only=True))
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def conf_profit_factor(
     x: NDArray[np.float_], n: int, n_boot: int
 ) -> BootConfIntervals:
@@ -262,7 +262,7 @@ def conf_profit_factor(
         high_10=np.exp(intervals.high_10),
     )
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def conf_sharpe_ratio(
     x: NDArray[np.float_], n: int, n_boot: int, obs: Optional[int] = None
 ) -> BootConfIntervals:
@@ -281,7 +281,7 @@ def conf_sharpe_ratio(
     return intervals
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def max_drawdown(changes: NDArray[np.float_]) -> float:
     """Computes maximum drawdown, measured in cash.
 
@@ -304,7 +304,7 @@ def max_drawdown(changes: NDArray[np.float_]) -> float:
                 dd = loss
     return -dd
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def calmar_ratio(changes: NDArray[np.float_], bars_per_year: int) -> float:
     """Computes the Calmar Ratio.
 
@@ -320,7 +320,7 @@ def calmar_ratio(changes: NDArray[np.float_], bars_per_year: int) -> float:
     return np.mean(changes) * bars_per_year / max_dd
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def max_drawdown_percent(returns: NDArray[np.float_]) -> float:
     """Computes maximum drawdown, measured in percentage loss.
 
@@ -345,7 +345,7 @@ def max_drawdown_percent(returns: NDArray[np.float_]) -> float:
     return dd
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def _dd_conf(q: float, boot: NDArray[np.float_]) -> float:
     k = int((q * (len(boot) + 1)) - 1)
     k = max(k, 0)
@@ -382,7 +382,7 @@ class DrawdownMetrics(NamedTuple):
     pct_confs: DrawdownConfs
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def _dd_confs(boot: NDArray[np.float_]) -> DrawdownConfs:
     boot.sort()
     boot = boot[::-1]
@@ -394,7 +394,7 @@ def _dd_confs(boot: NDArray[np.float_]) -> DrawdownConfs:
     )
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def drawdown_conf(
     changes: NDArray[np.float_],
     returns: NDArray[np.float_],
@@ -437,7 +437,7 @@ def drawdown_conf(
     return DrawdownMetrics(_dd_confs(boot_dd), _dd_confs(boot_dd_pct))
 
 
-#@njit(fastmath=True)
+@njit
 def relative_entropy(values: NDArray[np.float_]) -> float:
     """Computes the relative `entropy
     <https://en.wikipedia.org/wiki/Entropy_(information_theory)>`_.
@@ -479,7 +479,7 @@ def iqr(values: NDArray[np.float_]) -> float:
     return q75 - q25
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 #TODO: very slow
 def ulcer_index(values: NDArray[np.float_], period: int = 14) -> float:
     """Computes the
@@ -501,7 +501,7 @@ def ulcer_index(values: NDArray[np.float_], period: int = 14) -> float:
     return np.sqrt(np.mean(np.square(dd)))
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 #TODO: very slow
 def upi(
     values: NDArray[np.float_], period: int = 14, ui: Optional[float] = None
@@ -522,14 +522,39 @@ def upi(
         r[i] = (values[i + 1] - values[i]) / values[i] * 100
     return float(np.mean(r) / ui)
 
+@njit(fastmath=True)
+def greater_than_zero(one):
+    return one > 0
 
-def split_profits_losses(values: iter):
-    profits = np.fromiter(filter(lambda value: value > 0, values), dtype=float)
-    losses = np.fromiter(filter(lambda value: value < 0, values), dtype=float)
-    return profits,losses
-
+@njit(fastmath=True)
+def less_than_zero(one):
+    return one < 0
 
 #@njit(fastmath=True)
+def filter_nb(arr, cond_nb):
+    j = 0
+    for i in range(len(arr)):
+        if cond_nb(arr[i]):
+            j += 1
+    
+    result_shape = list(arr.shape)
+    result_shape[0] = j
+    result_shape = tuple(result_shape)
+    result = np.empty(result_shape, dtype=arr.dtype)
+    j = 0
+    for i in range(len(arr)):
+        if cond_nb(arr[i]):
+            result[j] = arr[i]
+            j += 1
+    return result
+
+#@njit(fastmath=True)
+def split_profits_losses(values: iter):
+    profits = filter_nb(values, greater_than_zero)
+    losses = filter_nb(values, less_than_zero)
+    return profits,losses
+
+@njit(fastmath=True)
 def win_loss_rate(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes the win rate and loss rate as percentages.
 
@@ -546,7 +571,7 @@ def win_loss_rate(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tu
     loss_rate = losses.size / n * 100
     return win_rate, loss_rate
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def winning_losing_trades(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[int, int]:
     """Returns the number of winning and losing trades.
 
@@ -558,7 +583,7 @@ def winning_losing_trades(profits: NDArray[np.float_], losses: NDArray[np.float_
     """
     return profits.size,losses.size
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def total_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes total profit and loss.
 
@@ -573,7 +598,7 @@ def total_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -
         np.sum(losses) if losses.size else 0,
     )
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def avg_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes the average profit and average loss per trade.
 
@@ -588,7 +613,7 @@ def avg_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> 
         np.mean(losses) if losses.size else 0,
     )
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def largest_win_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
     """Computes the largest profit and largest loss of all trades.
 
@@ -604,7 +629,7 @@ def largest_win_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) ->
     )
 
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def max_wins_losses(pnls: NDArray[np.float_]) -> tuple[int, int]:
     """Computes the max consecutive wins and max consecutive losses.
 
@@ -628,7 +653,7 @@ def max_wins_losses(pnls: NDArray[np.float_]) -> tuple[int, int]:
             losses = 0
     return max_wins, max_losses
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def total_return_percent(initial_value: float, pnl: float) -> float:
     """Computes total return as percentage.
 
@@ -640,7 +665,7 @@ def total_return_percent(initial_value: float, pnl: float) -> float:
         return 0
     return ((pnl + initial_value) / initial_value - 1) * 100
 
-#@njit(fastmath=True)
+@njit(fastmath=True)
 def annual_total_return_percent(
     initial_value: float, pnl: float, bars_per_year: int, total_bars: int
 ) -> float:
@@ -853,6 +878,9 @@ class _DrawdownResult(NamedTuple):
 class EvaluateMixin:
     """Mixin for computing evaluation metrics."""
 
+    def _attr_index(self, class_obj, attr_name):
+        vars(class_obj)['_fields'].index(attr_name)
+
     def evaluate(
         self,
         portfolio_df: deque[PortfolioBar],
@@ -879,8 +907,11 @@ class EvaluateMixin:
         Returns:
             :class:`.EvalResult` containing evaluation metrics.
         """
-        market_values = np.fromiter(map(lambda portfolio: portfolio.market_value, portfolio_df), dtype=float)
-        fees = np.fromiter(map(lambda portfolio: portfolio.fees, portfolio_df), dtype=float)
+        portfolio_np = np.asarray(portfolio_df)
+        portfolio_bar_fields = vars(PortfolioBar)['_fields']
+        portfolio_np = portfolio_np.reshape((len(portfolio_np), len(portfolio_bar_fields)))
+        market_values = (portfolio_np[:, portfolio_bar_fields.index('market_value')]).astype(float)
+        fees = (portfolio_np[:, portfolio_bar_fields.index('fees')]).astype(float)
         bar_returns = self._calc_bar_returns(market_values)
         bar_changes = self._calc_bar_changes(market_values)
         if (
@@ -889,13 +920,17 @@ class EvaluateMixin:
             or not bar_changes.size
         ):
             return EvalResult(EvalMetrics(), None)
-        pnls = np.fromiter(map(lambda trade: trade.pnl, trades_df), dtype=float)
-        return_pcts = np.fromiter(map(lambda trade: trade.return_pct, trades_df), dtype=float)
-        bars = np.fromiter(map(lambda trade: trade.bars, trades_df), dtype=int)
-        winning_trades = filter(lambda trade: trade.pnl > 0, trades_df)
-        winning_bars = np.fromiter(map(lambda trade: trade.bars, winning_trades), dtype=int)
-        losing_trades = filter(lambda trade: trade.pnl < 0, trades_df)
-        losing_bars = np.fromiter(map(lambda trade: trade.bars, losing_trades), dtype=int)
+        trades_np = np.asarray(trades_df)
+        trades_np = trades_np.reshape((len(trades_np), len(vars(Trade)['_fields'])))
+        trade_pnl_index = vars(Trade)['_fields'].index('pnl')
+        pnls = (trades_np[:, trade_pnl_index]).astype(float)
+        return_pcts = (trades_np[:, vars(Trade)['_fields'].index('return_pct')]).astype(float)
+        trade_bars_index = vars(Trade)['_fields'].index('bars')
+        bars = (trades_np[:, trade_bars_index]).astype(int)
+        winning_trades_np = filter_nb(trades_np, lambda trade: trade[trade_pnl_index] > 0)
+        winning_bars = winning_trades_np[:, trade_bars_index]
+        losing_trades_np = filter_nb(trades_np, lambda trade: trade[trade_pnl_index] < 0)
+        losing_bars = losing_trades_np[:, trade_bars_index]
         
         largest_win_pct = 0
         largest_win_bars = 0

@@ -493,11 +493,11 @@ class TestEvaluateMixin:
     @pytest.mark.parametrize(
         "bars_per_year, expected_sharpe, expected_sortino",
         [
-            (None, 0.017108281751624637, 0.017149378724643574),
+            (None, 0.017108281751624634, 0.017149378724643578),
             (
                 252,
-                0.017108281751624637 * np.sqrt(252),
-                0.017149378724643574 * np.sqrt(252),
+                0.017108281751624634 * np.sqrt(252),
+                0.017149378724643578 * np.sqrt(252),
             ),
         ],
     )
@@ -556,13 +556,13 @@ class TestEvaluateMixin:
             - metrics.initial_market_value
             - metrics.total_pnl
         )
-        assert metrics.total_return_pct == 33.14804
+        assert metrics.total_return_pct == 33.14803999999998
         assert metrics.total_profit == 403511.07999999996
         assert metrics.total_loss == -237770.88
         assert metrics.max_drawdown == -56721.59999999998
-        assert metrics.max_drawdown_pct == -7.908428778116649
-        assert metrics.win_rate == 52.57731958762887
-        assert metrics.loss_rate == 47.42268041237113
+        assert metrics.max_drawdown_pct == -7.908428778116644
+        assert metrics.win_rate == 52.577319587628864
+        assert metrics.loss_rate == 47.422680412371136
         assert metrics.winning_trades == 204
         assert metrics.losing_trades == 184
         assert metrics.avg_pnl == 427.1654639175258
@@ -572,7 +572,7 @@ class TestEvaluateMixin:
         assert metrics.avg_profit_pct == 3.1687745098039217
         assert metrics.avg_winning_trade_bars == 2.465686274509804
         assert metrics.avg_loss == -1292.233043478261
-        assert metrics.avg_loss_pct == -2.9235326086956523
+        assert metrics.avg_loss_pct == -2.923532608695652
         assert metrics.avg_losing_trade_bars == 2.358695652173913
         assert metrics.largest_win == 21069.63
         assert metrics.largest_win_pct == 14.49
@@ -584,7 +584,7 @@ class TestEvaluateMixin:
         assert metrics.max_losses == 7
         assert metrics.sharpe == expected_sharpe
         assert metrics.sortino == expected_sortino
-        assert metrics.profit_factor == 1.0759385033768165
+        assert metrics.profit_factor == 1.075938503376816
         assert metrics.ulcer_index == 0
         assert metrics.upi == 0
         assert metrics.equity_r2 == 0
@@ -671,26 +671,9 @@ class TestEvaluateMixin:
 
     def test_evaluate_when_trades_empty(self, portfolio_df, calc_bootstrap):
         mixin = EvaluateMixin()
-        empty_trades = [Trade(
-                            id=1,
-                            type="long",
-                            symbol=[],
-                            entry_date=[],
-                            exit_date=[],
-                            entry=0,
-                            exit=0,
-                            shares=0,
-                            pnl=float(0),
-                            return_pct=float(0),
-                            agg_pnl=float(0),
-                            bars=0,
-                            pnl_per_bar=float(0),
-                            stop=None,
-                        )
-                    ]
         result = mixin.evaluate(
             portfolio_df,
-            empty_trades,
+            np.empty((0, len(vars(Trade)['_fields']))),
             calc_bootstrap,
             bootstrap_sample_size=10,
             bootstrap_samples=100,

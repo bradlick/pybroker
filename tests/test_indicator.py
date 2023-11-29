@@ -112,6 +112,7 @@ class TestIndicator:
         assert isinstance(hhv_ind.iqr(data_source_df), float)
 
     def test_relative_entropy(self, hhv_ind, data_source_df):
+        print(data_source_df)
         assert isinstance(hhv_ind.relative_entropy(data_source_df), float)
 
     def test_repr(self, hhv_ind):
