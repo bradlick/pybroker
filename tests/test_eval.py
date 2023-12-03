@@ -76,12 +76,44 @@ def portfolio_df():
         os.path.join(os.path.dirname(__file__), "testdata/portfolio.joblib")
     )
 
+@pytest.fixture()
+def portfolio_np():
+    result =  np.asarray(joblib.load(
+        os.path.join(os.path.dirname(__file__), "testdata/portfolio.joblib")
+    ))
+    print(result)
+    result.reshape((len(result), len(vars(PortfolioBar)['_fields'])))
+    return result
 
 @pytest.fixture()
 def trades_df():
     return joblib.load(
         os.path.join(os.path.dirname(__file__), "testdata/trades.joblib")
     )
+
+@pytest.fixture()
+def trades_np():
+    result =  np.asarray(joblib.load(
+        os.path.join(os.path.dirname(__file__), "testdata/trades.joblib")
+    ))
+    result.reshape((len(result), len(vars(Trade)['_fields'])))
+    return result
+
+@pytest.fixture()
+def winning_trades_np():
+    result = np.asarray(list(filter(lambda t: t.pnl > 0, joblib.load(
+        os.path.join(os.path.dirname(__file__), "testdata/trades.joblib")
+    ))))
+    result.reshape((len(result), len(vars(Trade)['_fields'])))
+    return result
+
+@pytest.fixture()
+def losing_trades_np():
+    result = np.asarray(list(filter(lambda t: t.pnl < 0, joblib.load(
+        os.path.join(os.path.dirname(__file__), "testdata/trades.joblib")
+    ))))
+    result.reshape((len(result), len(vars(Trade)['_fields'])))
+    return result
 
 
 def truncate(value, n):
@@ -509,7 +541,11 @@ class TestEvaluateMixin:
         bootstrap_sample_size,
         bootstrap_samples,
         portfolio_df,
+        portfolio_np,
         trades_df,
+        trades_np,
+        winning_trades_np,
+        losing_trades_np,
         calc_bootstrap,
         bars_per_year,
         expected_sharpe,
@@ -518,7 +554,11 @@ class TestEvaluateMixin:
         mixin = EvaluateMixin()
         result = mixin.evaluate(
             portfolio_df,
+            portfolio_np,
             trades_df,
+            trades_np,
+            winning_trades_np,
+            losing_trades_np,
             calc_bootstrap,
             bootstrap_sample_size=bootstrap_sample_size,
             bootstrap_samples=bootstrap_samples,
@@ -606,17 +646,12 @@ class TestEvaluateMixin:
     def test_evaluate_when_portfolio_empty(self, trades_df, calc_bootstrap):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            [PortfolioBar(
-                market_value=0,
-                fees=0,
-                date=datetime.fromtimestamp(111111111111), 
-                cash=0, 
-                equity=0, 
-                margin=0, 
-                pnl=0,
-                unrealized_pnl=0,
-            )],
+            np.empty((0, len(vars(PortfolioBar)['_fields']))),
+            np.empty((0, len(vars(PortfolioBar)['_fields']))),
             trades_df,
+            trades_np,
+            winning_trades_np,
+            losing_trades_np,
             calc_bootstrap,
             bootstrap_sample_size=10,
             bootstrap_samples=100,
@@ -640,17 +675,12 @@ class TestEvaluateMixin:
     ):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            [PortfolioBar(
-                market_value=1000,
-                fees=0,
-                date=datetime.fromtimestamp(111111111111), 
-                cash=0, 
-                equity=0, 
-                margin=0, 
-                pnl=0,
-                unrealized_pnl=0,
-            )],
+            np.empty((0, len(vars(PortfolioBar)['_fields']))),
+            np.empty((0, len(vars(PortfolioBar)['_fields']))),
             trades_df,
+            trades_np,
+            winning_trades_np,
+            losing_trades_np,
             calc_bootstrap,
             bootstrap_sample_size=10,
             bootstrap_samples=100,
@@ -669,10 +699,14 @@ class TestEvaluateMixin:
                 assert getattr(result.metrics, field) == 0
         assert result.bootstrap is None
 
-    def test_evaluate_when_trades_empty(self, portfolio_df, calc_bootstrap):
+    def test_evaluate_when_trades_empty(self, portfolio_df, portfolio_np, calc_bootstrap):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
             portfolio_df,
+            portfolio_np,
+            np.empty((0, len(vars(Trade)['_fields']))),
+            np.empty((0, len(vars(Trade)['_fields']))),
+            np.empty((0, len(vars(Trade)['_fields']))),
             np.empty((0, len(vars(Trade)['_fields']))),
             calc_bootstrap,
             bootstrap_sample_size=10,

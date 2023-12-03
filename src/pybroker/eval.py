@@ -884,7 +884,11 @@ class EvaluateMixin:
     def evaluate(
         self,
         portfolio_df: deque[PortfolioBar],
+        portfolio_np,
         trades_df: deque[Trade],
+        trades_np,
+        winning_trades_np,
+        losing_trades_np,
         calc_bootstrap: bool,
         bootstrap_sample_size: int,
         bootstrap_samples: int,
@@ -907,7 +911,6 @@ class EvaluateMixin:
         Returns:
             :class:`.EvalResult` containing evaluation metrics.
         """
-        portfolio_np = np.asarray(portfolio_df)
         portfolio_bar_fields = vars(PortfolioBar)['_fields']
         portfolio_np = portfolio_np.reshape((len(portfolio_np), len(portfolio_bar_fields)))
         market_values = (portfolio_np[:, portfolio_bar_fields.index('market_value')]).astype(float)
@@ -920,36 +923,44 @@ class EvaluateMixin:
             or not bar_changes.size
         ):
             return EvalResult(EvalMetrics(), None)
-        trades_np = np.asarray(trades_df)
         trades_np = trades_np.reshape((len(trades_np), len(vars(Trade)['_fields'])))
         trade_pnl_index = vars(Trade)['_fields'].index('pnl')
         pnls = (trades_np[:, trade_pnl_index]).astype(float)
-        return_pcts = (trades_np[:, vars(Trade)['_fields'].index('return_pct')]).astype(float)
+        winning_pnls = (winning_trades_np[:, trade_pnl_index]).astype(float)
+        losing_pnls = (losing_trades_np[:, trade_pnl_index]).astype(float)
+        trade_return_pct_index = vars(Trade)['_fields'].index('return_pct')
+        return_pcts = (trades_np[:, trade_return_pct_index]).astype(float)
+        winning_return_pcts = (winning_trades_np[:, trade_return_pct_index]).astype(float)
+        losing_return_pcts = (losing_trades_np[:, trade_return_pct_index]).astype(float)
         trade_bars_index = vars(Trade)['_fields'].index('bars')
         bars = (trades_np[:, trade_bars_index]).astype(int)
-        winning_trades_np = filter_nb(trades_np, lambda trade: trade[trade_pnl_index] > 0)
         winning_bars = winning_trades_np[:, trade_bars_index]
-        losing_trades_np = filter_nb(trades_np, lambda trade: trade[trade_pnl_index] < 0)
         losing_bars = losing_trades_np[:, trade_bars_index]
         
         largest_win_pct = 0
         largest_win_bars = 0
         largest_loss_pct=0
         largest_loss_bars=0
-        if len(trades_df):
-            largest_win = max(trades_df, key=lambda trade: trade.pnl)
-            largest_win_pct = largest_win.return_pct
-            largest_win_bars = largest_win.bars
-            largest_loss = min(trades_df, key=lambda trade: trade.pnl)
-            largest_loss_pct=largest_loss.return_pct
-            largest_loss_bars=largest_loss.bars
+        if len(trades_np):
+            largest_win_index = np.argmax(trades_np[:, trade_pnl_index])
+            largest_win = trades_np[largest_win_index]
+            largest_win_pct = largest_win[trade_return_pct_index]
+            largest_win_bars = largest_win[trade_bars_index]
+            largest_loss_index = np.argmin(trades_np[:, trade_pnl_index])
+            largest_loss = trades_np[largest_loss_index]
+            largest_loss_pct=largest_loss[trade_return_pct_index]
+            largest_loss_bars=largest_loss[trade_bars_index]
 
         metrics = self._calc_eval_metrics(
             market_values,
             bar_changes,
             bar_returns,
             pnls,
+            winning_pnls,
+            losing_pnls,
             return_pcts,
+            winning_return_pcts,
+            losing_return_pcts,
             bars=bars,
             winning_bars=winning_bars,
             losing_bars=losing_bars,
@@ -961,6 +972,7 @@ class EvaluateMixin:
             bars_per_year=bars_per_year,
         )
         logger = StaticScope.instance().logger
+        print('calculating bootstrap...')
         if not calc_bootstrap:
             return EvalResult(metrics, None)
         if len(bar_returns) <= bootstrap_sample_size:
@@ -1020,7 +1032,11 @@ class EvaluateMixin:
         bar_changes:  NDArray[np.float_],
         bar_returns:  NDArray[np.float_],
         pnls:  NDArray[np.float_],
+        pnl_profits:  NDArray[np.float_],
+        pnl_losses:  NDArray[np.float_],
         return_pcts:  NDArray[np.float_],
+        return_pct_profits:  NDArray[np.float_],
+        return_pct_losses:  NDArray[np.float_],
         bars:  NDArray[np.int_],
         winning_bars:  NDArray[np.int_],
         losing_bars:  NDArray[np.int_],
@@ -1063,12 +1079,10 @@ class EvaluateMixin:
         max_wins = 0
         max_losses = 0
         if pnls.size:
-            pnl_profits, pnl_losses = split_profits_losses(pnls)
             largest_win, largest_loss = largest_win_loss(pnl_profits, pnl_losses)
             win_rate, loss_rate = win_loss_rate(pnl_profits, pnl_losses)
             winning_trades, losing_trades = winning_losing_trades(pnl_profits, pnl_losses)
             avg_profit, avg_loss = avg_profit_loss(pnl_profits, pnl_losses)
-            return_pct_profits, return_pct_losses = split_profits_losses(return_pcts)
             avg_profit_pct, avg_loss_pct = avg_profit_loss(return_pct_profits, return_pct_losses)
             total_profit, total_loss = total_profit_loss(pnl_profits, pnl_losses)
             max_wins, max_losses = max_wins_losses(pnls)

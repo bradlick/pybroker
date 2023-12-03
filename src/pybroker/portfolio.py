@@ -10,6 +10,7 @@ This code is licensed under Apache 2.0 with Commons Clause license
 
 import itertools
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 from pybroker.common import (
     BarData,
@@ -324,12 +325,17 @@ class Portfolio:
         self._max_short_positions = max_short_positions
         self.orders: deque[Order] = deque()
         self.trades: deque[Trade] = deque()
+        num_trade_fields = len(vars(Trade)['_fields'])
+        self.trades_np = np.empty((0, num_trade_fields))
+        self.winning_trades_np = np.empty((0, num_trade_fields))
+        self.losing_trades_np = np.empty((0, num_trade_fields))
         self.margin: float = float()
         self.pnl: float = float()
         self.long_positions: dict[str, Position] = {}
         self.short_positions: dict[str, Position] = {}
         self.symbols: set[str] = set()
         self.bars: deque[PortfolioBar] = deque()
+        self.bars_np = np.empty((0, len(vars(PortfolioBar)['_fields'])))
         self.position_bars: deque[PositionBar] = deque()
         self.win_rate: float = float()
         self.loss_rate: float = float()
@@ -447,8 +453,14 @@ class Portfolio:
             stop=None if stop_type is None else stop_type.value,
         )
         self.trades.append(trade)
+        trade_np = np.asarray(trade)
+        self.trades_np = np.append(self.trades_np, [trade_np], axis=0)
+        
         if pnl > 0:
             self._wins += 1
+            self.winning_trades_np = np.append(self.winning_trades_np, [trade_np], axis=0)
+        else:
+            self.losing_trades_np = np.append(self.losing_trades_np, [trade_np], axis=0)
         self.win_rate = self._wins / len(self.trades)
         self.loss_rate = 1 - self.win_rate
 
@@ -917,8 +929,7 @@ class Portfolio:
         self.market_value = total_market_value
         self.margin = total_margin
 
-        self.bars.append(
-            PortfolioBar(
+        bar = PortfolioBar(
                 date=date,
                 cash=self.cash,
                 equity=self.equity,
@@ -928,7 +939,11 @@ class Portfolio:
                 unrealized_pnl=self.market_value - self.equity,
                 fees=self.fees,
             )
-        )
+    
+        self.bars.append(bar)
+        bar_np = np.asarray(bar)
+        self.bars_np = np.append(self.bars_np, [bar_np], axis=0)
+        
 
     def incr_bars(self):
         """Increments the number of bars held by every trade entry."""
