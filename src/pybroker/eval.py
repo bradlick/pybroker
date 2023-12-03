@@ -972,7 +972,6 @@ class EvaluateMixin:
             bars_per_year=bars_per_year,
         )
         logger = StaticScope.instance().logger
-        print('calculating bootstrap...')
         if not calc_bootstrap:
             return EvalResult(metrics, None)
         if len(bar_returns) <= bootstrap_sample_size:
