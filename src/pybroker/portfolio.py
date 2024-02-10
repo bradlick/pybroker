@@ -336,6 +336,8 @@ class Portfolio:
         self.symbols: set[str] = set()
         self.bars: deque[PortfolioBar] = deque()
         self.bars_np = np.empty((0, len(vars(PortfolioBar)['_fields'])))
+        self.market_values_np = np.empty((0,)).astype(float)
+        self.fees_np = np.empty((0,)).astype(float)
         self.position_bars: deque[PositionBar] = deque()
         self.win_rate: float = float()
         self.loss_rate: float = float()
@@ -941,8 +943,9 @@ class Portfolio:
             )
     
         self.bars.append(bar)
-        bar_np = np.asarray(bar)
-        self.bars_np = np.append(self.bars_np, [bar_np], axis=0)
+        self.bars_np = np.append(self.bars_np, [np.asarray(bar)], axis=0)
+        self.market_values_np = np.append(self.market_values_np, [np.asarray(bar.market_value)], axis=0)
+        self.fees_np = np.append(self.fees_np, [np.asarray(bar.fees)], axis=0)
         
 
     def incr_bars(self):

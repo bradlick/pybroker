@@ -684,7 +684,8 @@ class BacktestMixin:
         calc_bootstrap: bool,
     ) -> TestResult:
         eval_result = self.evaluate(
-            portfolio_np=portfolio.bars_np,
+            portfolio_market_values_np=portfolio.market_values_np,
+            portfolio_fees_np=portfolio.fees_np,
             trades_np=portfolio.trades_np,
             winning_trades_np=portfolio.winning_trades_np,
             losing_trades_np=portfolio.losing_trades_np,

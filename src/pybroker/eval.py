@@ -1046,7 +1046,8 @@ class EvaluateMixin:
     #@njit
     def evaluate(
         self,
-        portfolio_np,
+        portfolio_market_values_np,
+        portfolio_fees_np,
         trades_np,
         winning_trades_np,
         losing_trades_np,
@@ -1072,10 +1073,9 @@ class EvaluateMixin:
         Returns:
             :class:`.EvalResult` containing evaluation metrics.
         """
-        portfolio_bar_fields = vars(PortfolioBar)['_fields']
-        portfolio_np = portfolio_np.reshape((len(portfolio_np), len(portfolio_bar_fields)))
-        market_values = (portfolio_np[:, portfolio_bar_fields.index('market_value')]).astype(float)
-        fees = (portfolio_np[:, portfolio_bar_fields.index('fees')]).astype(float)
+
+        market_values = portfolio_market_values_np
+        fees = portfolio_fees_np
         bar_returns = self._calc_bar_returns(market_values)
         bar_changes = self._calc_bar_changes(market_values)
         if (
@@ -1212,6 +1212,8 @@ class EvaluateMixin:
         return EvalResult(metrics, bootstrap)
 
     def _calc_bar_returns(self, market_values: NDArray[np.float32]) -> NDArray[np.float32]:
+        print(market_values.shape)
+        print(market_values)
         return _calc_bar_returns(market_values)
 
     def _calc_bar_changes(self, market_values: NDArray[np.float32]) -> NDArray[np.float32]:

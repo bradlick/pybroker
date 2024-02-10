@@ -536,7 +536,8 @@ class TestEvaluateMixin:
     ):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            portfolio_np,
+            (portfolio_np[:, vars(PortfolioBar)['_fields'].index('market_value')]).astype(float),
+            (portfolio_np[:, vars(PortfolioBar)['_fields'].index('fees')]).astype(float),
             trades_np,
             winning_trades_np,
             losing_trades_np,
@@ -627,7 +628,8 @@ class TestEvaluateMixin:
     def test_evaluate_when_portfolio_empty(self, calc_bootstrap):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            np.empty((0, len(vars(PortfolioBar)['_fields']))),
+            np.empty((0,)).astype(float),
+            np.empty((0,)).astype(float),
             trades_np,
             winning_trades_np,
             losing_trades_np,
@@ -654,7 +656,8 @@ class TestEvaluateMixin:
     ):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            np.empty((0, len(vars(PortfolioBar)['_fields']))),
+            np.empty((0,)).astype(float),
+            np.empty((0,)).astype(float),
             trades_np,
             winning_trades_np,
             losing_trades_np,
@@ -679,7 +682,8 @@ class TestEvaluateMixin:
     def test_evaluate_when_trades_empty(self, portfolio_np, calc_bootstrap):
         mixin = EvaluateMixin()
         result = mixin.evaluate(
-            portfolio_np,
+            (portfolio_np[:, vars(PortfolioBar)['_fields'].index('market_value')]).astype(float),
+            (portfolio_np[:, vars(PortfolioBar)['_fields'].index('fees')]).astype(float),
             np.empty((0, len(vars(Trade)['_fields']))),
             np.empty((0, len(vars(Trade)['_fields']))),
             np.empty((0, len(vars(Trade)['_fields']))),
