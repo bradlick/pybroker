@@ -21,7 +21,7 @@ from numpy.typing import NDArray
 from typing import Callable, NamedTuple, Optional
 
 
-@njit(fastmath=True)
+@njit
 def normal_cdf(z: float) -> float:
     """Computes the CDF of the standard normal distribution."""
     zz = np.fabs(z)
@@ -35,7 +35,7 @@ def normal_cdf(z: float) -> float:
     return 1 - pdf * poly if z > 0 else pdf * poly
 
 
-@njit(fastmath=True)
+@njit
 def inverse_normal_cdf(p: float) -> float:
     """Computes the inverse CDF of the standard normal distribution."""
     pp = p if p <= 0.5 else 1 - p
@@ -68,12 +68,12 @@ class BootConfIntervals(NamedTuple):
     high_10: float
 
 
-@njit(fastmath=True)
+@njit
 def bca_boot_conf(
-    x: NDArray[np.float_],
+    x: NDArray[np.float32],
     n: int,
     n_boot: int,
-    fn: Callable[[NDArray[np.float_]], float],
+    fn: Callable[[NDArray[np.float32]], float],
 ) -> BootConfIntervals:
     """Computes confidence intervals for a user-defined parameter using the
     `bias corrected and accelerated (BCa) bootstrap method.
@@ -171,9 +171,9 @@ def bca_boot_conf(
     return BootConfIntervals(low_2p5, high_2p5, low_5, high_5, low_10, high_10)
 
 
-@njit(fastmath=True)
+@njit
 def profit_factor(
-    changes: NDArray[np.float_], use_log: bool = False
+    changes: NDArray[np.float32], use_log: bool = False
 ) -> np.floating:
     """Computes the profit factor, which is the ratio of gross profit to gross
     loss.
@@ -195,8 +195,8 @@ def profit_factor(
         return np.divide(numer, denom)
 
 
-@njit(fastmath=True)
-def log_profit_factor(changes: NDArray[np.float_]) -> np.floating:
+@njit
+def log_profit_factor(changes: NDArray[np.float32]) -> np.floating:
     """Computes the log transformed profit factor, which is the ratio of gross
     profit to gross loss.
 
@@ -206,9 +206,9 @@ def log_profit_factor(changes: NDArray[np.float_]) -> np.floating:
     return profit_factor(changes, use_log=True)
 
 
-@njit(fastmath=True)
+@njit
 def sharpe_ratio(
-    changes: NDArray[np.float_],
+    changes: NDArray[np.float32],
     obs: Optional[int] = None,
     downside_only: bool = False,
 ) -> np.floating:
@@ -232,9 +232,9 @@ def sharpe_ratio(
         sr *= np.sqrt(obs)
     return sr
 
-@njit(fastmath=True)
+@njit
 def sortino_ratio(
-    changes: NDArray[np.float_], obs: Optional[int] = None
+    changes: NDArray[np.float32], obs: Optional[int] = None
 ) -> float:
     """Computes the
     `Sortino Ratio <https://en.wikipedia.org/wiki/Sortino_ratio>`_.
@@ -247,9 +247,9 @@ def sortino_ratio(
     """
     return float(sharpe_ratio(changes, obs, downside_only=True))
 
-@njit(fastmath=True)
+@njit
 def conf_profit_factor(
-    x: NDArray[np.float_], n: int, n_boot: int
+    x: NDArray[np.float32], n: int, n_boot: int
 ) -> BootConfIntervals:
     """Computes confidence intervals for :func:`.profit_factor`."""
     intervals = bca_boot_conf(x, n, n_boot, log_profit_factor)
@@ -262,9 +262,9 @@ def conf_profit_factor(
         high_10=np.exp(intervals.high_10),
     )
 
-@njit(fastmath=True)
+@njit
 def conf_sharpe_ratio(
-    x: NDArray[np.float_], n: int, n_boot: int, obs: Optional[int] = None
+    x: NDArray[np.float32], n: int, n_boot: int, obs: Optional[int] = None
 ) -> BootConfIntervals:
     """Computes confidence intervals for :func:`.sharpe_ratio`."""
     intervals = bca_boot_conf(x, n, n_boot, sharpe_ratio)
@@ -281,8 +281,8 @@ def conf_sharpe_ratio(
     return intervals
 
 
-@njit(fastmath=True)
-def max_drawdown(changes: NDArray[np.float_]) -> float:
+@njit
+def max_drawdown(changes: NDArray[np.float32]) -> float:
     """Computes maximum drawdown, measured in cash.
 
     Args:
@@ -304,8 +304,8 @@ def max_drawdown(changes: NDArray[np.float_]) -> float:
                 dd = loss
     return -dd
 
-@njit(fastmath=True)
-def calmar_ratio(changes: NDArray[np.float_], bars_per_year: int) -> float:
+@njit
+def calmar_ratio(changes: NDArray[np.float32], bars_per_year: int) -> float:
     """Computes the Calmar Ratio.
 
     Args:
@@ -320,8 +320,8 @@ def calmar_ratio(changes: NDArray[np.float_], bars_per_year: int) -> float:
     return np.mean(changes) * bars_per_year / max_dd
 
 
-@njit(fastmath=True)
-def max_drawdown_percent(returns: NDArray[np.float_]) -> float:
+@njit
+def max_drawdown_percent(returns: NDArray[np.float32]) -> float:
     """Computes maximum drawdown, measured in percentage loss.
 
     Args:
@@ -345,8 +345,8 @@ def max_drawdown_percent(returns: NDArray[np.float_]) -> float:
     return dd
 
 
-@njit(fastmath=True)
-def _dd_conf(q: float, boot: NDArray[np.float_]) -> float:
+@njit
+def _dd_conf(q: float, boot: NDArray[np.float32]) -> float:
     k = int((q * (len(boot) + 1)) - 1)
     k = max(k, 0)
     return boot[k]
@@ -382,8 +382,8 @@ class DrawdownMetrics(NamedTuple):
     pct_confs: DrawdownConfs
 
 
-@njit(fastmath=True)
-def _dd_confs(boot: NDArray[np.float_]) -> DrawdownConfs:
+@njit
+def _dd_confs(boot: NDArray[np.float32]) -> DrawdownConfs:
     boot.sort()
     boot = boot[::-1]
     return DrawdownConfs(
@@ -394,10 +394,10 @@ def _dd_confs(boot: NDArray[np.float_]) -> DrawdownConfs:
     )
 
 
-@njit(fastmath=True)
+@njit
 def drawdown_conf(
-    changes: NDArray[np.float_],
-    returns: NDArray[np.float_],
+    changes: NDArray[np.float32],
+    returns: NDArray[np.float32],
     n: int,
     n_boot: int,
 ) -> DrawdownMetrics:
@@ -438,7 +438,7 @@ def drawdown_conf(
 
 
 @njit
-def relative_entropy(values: NDArray[np.float_]) -> float:
+def relative_entropy(values: NDArray[np.float32]) -> float:
     """Computes the relative `entropy
     <https://en.wikipedia.org/wiki/Entropy_(information_theory)>`_.
     """
@@ -469,7 +469,7 @@ def relative_entropy(values: NDArray[np.float_]) -> float:
     return -sum_ / np.log(n_bins)
 
 # njit fails with error numba.core.errors.TypingError
-def iqr(values: NDArray[np.float_]) -> float:
+def iqr(values: NDArray[np.float32]) -> float:
     """Computes the `interquartile range (IQR)
     <https://en.wikipedia.org/wiki/Interquartile_range>`_ of ``values``."""
     x = values[~np.isnan(values)]
@@ -479,9 +479,9 @@ def iqr(values: NDArray[np.float_]) -> float:
     return q75 - q25
 
 
-@njit(fastmath=True)
+@njit
 #TODO: very slow
-def ulcer_index(values: NDArray[np.float_], period: int = 14) -> float:
+def ulcer_index(values: NDArray[np.float32], period: int = 14) -> float:
     """Computes the
     `Ulcer Index <https://en.wikipedia.org/wiki/Ulcer_index>`_ of ``values``.
     """
@@ -501,10 +501,10 @@ def ulcer_index(values: NDArray[np.float_], period: int = 14) -> float:
     return np.sqrt(np.mean(np.square(dd)))
 
 
-@njit(fastmath=True)
+@njit
 #TODO: very slow
 def upi(
-    values: NDArray[np.float_], period: int = 14, ui: Optional[float] = None
+    values: NDArray[np.float32], period: int = 14, ui: Optional[float] = None
 ) -> float:
     """Computes the `Ulcer Performance Index
     <https://en.wikipedia.org/wiki/Ulcer_index>`_ of ``values``.
@@ -522,15 +522,15 @@ def upi(
         r[i] = (values[i + 1] - values[i]) / values[i] * 100
     return float(np.mean(r) / ui)
 
-@njit(fastmath=True)
+@njit
 def greater_than_zero(one):
     return one > 0
 
-@njit(fastmath=True)
+@njit
 def less_than_zero(one):
     return one < 0
 
-#@njit(fastmath=True)
+#@njit
 def filter_nb(arr, cond_nb):
     j = 0
     for i in range(len(arr)):
@@ -548,14 +548,14 @@ def filter_nb(arr, cond_nb):
             j += 1
     return result
 
-#@njit(fastmath=True)
+#@njit
 def split_profits_losses(values: iter):
     profits = filter_nb(values, greater_than_zero)
     losses = filter_nb(values, less_than_zero)
     return profits,losses
 
-@njit(fastmath=True)
-def win_loss_rate(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
+@njit
+def win_loss_rate(profits: NDArray[np.float32], losses: NDArray[np.float32]) -> tuple[float, float]:
     """Computes the win rate and loss rate as percentages.
 
     Args:
@@ -571,8 +571,8 @@ def win_loss_rate(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tu
     loss_rate = losses.size / n * 100
     return win_rate, loss_rate
 
-@njit(fastmath=True)
-def winning_losing_trades(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[int, int]:
+@njit
+def winning_losing_trades(profits: NDArray[np.float32], losses: NDArray[np.float32]) -> tuple[int, int]:
     """Returns the number of winning and losing trades.
 
     Args:
@@ -583,8 +583,8 @@ def winning_losing_trades(profits: NDArray[np.float_], losses: NDArray[np.float_
     """
     return profits.size,losses.size
 
-@njit(fastmath=True)
-def total_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
+@njit
+def total_profit_loss(profits: NDArray[np.float32], losses: NDArray[np.float32]) -> tuple[float, float]:
     """Computes total profit and loss.
 
     Args:
@@ -598,8 +598,8 @@ def total_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -
         np.sum(losses) if losses.size else 0,
     )
 
-@njit(fastmath=True)
-def avg_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
+@njit
+def avg_profit_loss(profits: NDArray[np.float32], losses: NDArray[np.float32]) -> tuple[float, float]:
     """Computes the average profit and average loss per trade.
 
     Args:
@@ -613,8 +613,8 @@ def avg_profit_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> 
         np.mean(losses) if losses.size else 0,
     )
 
-@njit(fastmath=True)
-def largest_win_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) -> tuple[float, float]:
+@njit
+def largest_win_loss(profits: NDArray[np.float32], losses: NDArray[np.float32]) -> tuple[float, float]:
     """Computes the largest profit and largest loss of all trades.
 
     Args:
@@ -629,8 +629,8 @@ def largest_win_loss(profits: NDArray[np.float_], losses: NDArray[np.float_]) ->
     )
 
 
-@njit(fastmath=True)
-def max_wins_losses(pnls: NDArray[np.float_]) -> tuple[int, int]:
+@njit
+def max_wins_losses(pnls: NDArray[np.float32]) -> tuple[int, int]:
     """Computes the max consecutive wins and max consecutive losses.
 
     Args:
@@ -653,7 +653,7 @@ def max_wins_losses(pnls: NDArray[np.float_]) -> tuple[int, int]:
             losses = 0
     return max_wins, max_losses
 
-@njit(fastmath=True)
+@njit
 def total_return_percent(initial_value: float, pnl: float) -> float:
     """Computes total return as percentage.
 
@@ -665,7 +665,7 @@ def total_return_percent(initial_value: float, pnl: float) -> float:
         return 0
     return ((pnl + initial_value) / initial_value - 1) * 100
 
-@njit(fastmath=True)
+@njit
 def annual_total_return_percent(
     initial_value: float, pnl: float, bars_per_year: int, total_bars: int
 ) -> float:
@@ -688,7 +688,8 @@ def annual_total_return_percent(
 
 # njit fails with error numba.core.errors.TypingError
 #TODO: very slow
-def r_squared(values: NDArray[np.float_]) -> float:
+@njit
+def r_squared(values: NDArray[np.float32]) -> float:
     """Computes R-squared of ``values``."""
     return 0
 
@@ -708,6 +709,31 @@ def r_squared(values: NDArray[np.float_]) -> float:
     except Exception:
         return 0
 
+
+@njit
+def _calc_bar_returns(market_values: NDArray[np.float32]) -> NDArray[np.float32]:
+    prev_market_value = _shift(market_values, 1)
+    returns = (market_values - prev_market_value) / prev_market_value
+    return returns[~np.isnan(returns)]
+
+@njit
+def _calc_bar_changes(market_values: NDArray[np.float32]) -> NDArray[np.float32]:
+    prev_market_value = _shift(market_values, 1)
+    changes = market_values - prev_market_value
+    return changes[~np.isnan(changes)]
+
+@njit
+def _shift(arr: NDArray[np.float32], num: int) -> NDArray[np.float32]:
+    result = np.empty_like(arr)
+    if num > 0:
+        result[:num] = np.nan
+        result[num:] = arr[:-num]
+    elif num < 0:
+        result[num:] = np.nan
+        result[:num] = arr[-num:]
+    else:
+        result[:] = arr
+    return result
 
 class BootstrapResult(NamedTuple):
     """Contains results of bootstrap tests.
@@ -729,8 +755,7 @@ class BootstrapResult(NamedTuple):
     drawdown: DrawdownMetrics
 
 
-@dataclass(frozen=True)
-class EvalMetrics:
+class EvalMetrics(NamedTuple):
     """Contains metrics for evaluating a :class:`pybroker.strategy.Strategy`.
 
     Attributes:
@@ -791,50 +816,187 @@ class EvalMetrics:
             bar on market values of portfolio.
     """
 
-    trade_count: int = field(default=0)
-    initial_market_value: float = field(default=0)
-    end_market_value: float = field(default=0)
-    total_pnl: float = field(default=0)
-    unrealized_pnl: float = field(default=0)
-    total_return_pct: float = field(default=0)
-    annual_return_pct: Optional[float] = field(default=None)
-    total_profit: float = field(default=0)
-    total_loss: float = field(default=0)
-    total_fees: float = field(default=0)
-    max_drawdown: float = field(default=0)
-    max_drawdown_pct: float = field(default=0)
-    win_rate: float = field(default=0)
-    loss_rate: float = field(default=0)
-    winning_trades: int = field(default=0)
-    losing_trades: int = field(default=0)
-    avg_pnl: float = field(default=0)
-    avg_return_pct: float = field(default=0)
-    avg_trade_bars: float = field(default=0)
-    avg_profit: float = field(default=0)
-    avg_profit_pct: float = field(default=0)
-    avg_winning_trade_bars: float = field(default=0)
-    avg_loss: float = field(default=0)
-    avg_loss_pct: float = field(default=0)
-    avg_losing_trade_bars: float = field(default=0)
-    largest_win: float = field(default=0)
-    largest_win_pct: float = field(default=0)
-    largest_win_bars: int = field(default=0)
-    largest_loss: float = field(default=0)
-    largest_loss_pct: float = field(default=0)
-    largest_loss_bars: int = field(default=0)
-    max_wins: int = field(default=0)
-    max_losses: int = field(default=0)
-    sharpe: float = field(default=0)
-    sortino: float = field(default=0)
-    calmar: Optional[float] = field(default=None)
-    profit_factor: float = field(default=0)
-    ulcer_index: float = field(default=0)
-    upi: float = field(default=0)
-    equity_r2: float = field(default=0)
-    std_error: float = field(default=0)
-    annual_std_error: Optional[float] = field(default=None)
-    annual_volatility_pct: Optional[float] = field(default=None)
+    trade_count: int
+    initial_market_value: float
+    end_market_value: float
+    total_pnl: float
+    unrealized_pnl: float
+    total_return_pct: float
+    annual_return_pct: Optional[float]
+    total_profit: float
+    total_loss: float
+    total_fees: float
+    max_drawdown: float
+    max_drawdown_pct: float
+    win_rate: float
+    loss_rate: float
+    winning_trades: int
+    losing_trades: int
+    avg_pnl: float
+    avg_return_pct: float
+    avg_trade_bars: float
+    avg_profit: float
+    avg_profit_pct: float
+    avg_winning_trade_bars: float
+    avg_loss: float
+    avg_loss_pct: float
+    avg_losing_trade_bars: float
+    largest_win: float
+    largest_win_pct: float
+    largest_win_bars: int
+    largest_loss: float
+    largest_loss_pct: float
+    largest_loss_bars: int
+    max_wins: int
+    max_losses: int
+    sharpe: float
+    sortino: float
+    calmar: Optional[float]
+    profit_factor: float
+    ulcer_index: float
+    upi: float
+    equity_r2: float
+    std_error: float
+    annual_std_error: Optional[float]
+    annual_volatility_pct: Optional[float]
 
+#@njit
+def _calc_eval_metrics(
+    market_values: NDArray[np.float32],
+    bar_changes:  NDArray[np.float32],
+    bar_returns:  NDArray[np.float32],
+    pnls:  NDArray[np.float32],
+    pnl_profits:  NDArray[np.float32],
+    pnl_losses:  NDArray[np.float32],
+    return_pcts:  NDArray[np.float32],
+    return_pct_profits:  NDArray[np.float32],
+    return_pct_losses:  NDArray[np.float32],
+    bars:  NDArray[np.int32],
+    winning_bars:  NDArray[np.int32],
+    losing_bars:  NDArray[np.int32],
+    largest_win_num_bars: int,
+    largest_win_pct: float,
+    largest_loss_num_bars: int,
+    largest_loss_pct: float,
+    fees: NDArray[np.float32],
+    bars_per_year: Optional[int],
+) -> EvalMetrics:
+    total_fees = fees[-1] if len(fees) else 0
+    max_dd = max_drawdown(bar_changes)
+    max_dd_pct = max_drawdown_percent(bar_returns)
+    sharpe = sharpe_ratio(bar_changes, bars_per_year)
+    sortino = sortino_ratio(bar_changes, bars_per_year)
+    pf = profit_factor(bar_changes)
+    r2 = r_squared(market_values)
+    ui = ulcer_index(market_values)
+    upi_ = upi(market_values, ui=ui)
+    std_error = float(np.std(market_values))
+    largest_win = 0.0
+    largest_loss = 0.0
+    win_rate = 0.0
+    loss_rate = 0.0
+    winning_trades = 0
+    losing_trades = 0
+    avg_pnl = 0.0
+    avg_return_pct = 0.0
+    avg_trade_bars = 0.0
+    avg_profit = 0.0
+    avg_loss = 0.0
+    avg_profit_pct = 0.0
+    avg_loss_pct = 0.0
+    avg_winning_trade_bars = 0.0
+    avg_losing_trade_bars = 0.0
+    total_profit = 0.0
+    total_loss = 0.0
+    total_pnl = 0.0
+    unrealized_pnl = 0.0
+    max_wins = 0
+    max_losses = 0
+    if pnls.size:
+        largest_win, largest_loss = largest_win_loss(pnl_profits, pnl_losses)
+        win_rate, loss_rate = win_loss_rate(pnl_profits, pnl_losses)
+        winning_trades, losing_trades = winning_losing_trades(pnl_profits, pnl_losses)
+        avg_profit, avg_loss = avg_profit_loss(pnl_profits, pnl_losses)
+        avg_profit_pct, avg_loss_pct = avg_profit_loss(return_pct_profits, return_pct_losses)
+        total_profit, total_loss = total_profit_loss(pnl_profits, pnl_losses)
+        max_wins, max_losses = max_wins_losses(pnls)
+        total_pnl = float(np.sum(pnls))
+        # Check length to avoid "Mean of empty slice" warning.
+        if pnls.size:
+            avg_pnl = float(np.mean(pnls))
+        if return_pcts.size:
+            avg_return_pct = float(np.mean(return_pcts))
+        if bars.size:
+            avg_trade_bars = float(np.mean(bars))
+        if winning_bars.size:
+            avg_winning_trade_bars = float(np.mean(winning_bars))
+        if losing_bars.size:
+            avg_losing_trade_bars = float(np.mean(losing_bars))
+    total_return_pct = total_return_percent(
+        initial_value=market_values[0], pnl=total_pnl
+    )
+    unrealized_pnl = market_values[-1] - market_values[0] - total_pnl
+    annual_return_pct = None
+    annual_std_error = None
+    annual_volatility_pct = None
+    calmar = None
+    if bars_per_year is not None:
+        annual_return_pct = annual_total_return_percent(
+            initial_value=market_values[0],
+            pnl=total_pnl,
+            bars_per_year=bars_per_year,
+            total_bars=len(market_values),
+        )
+        annual_std_error = std_error * np.sqrt(bars_per_year)
+        annual_volatility_pct = float(
+            np.std(bar_returns * 100) * np.sqrt(bars_per_year)
+        )
+        calmar = calmar_ratio(bar_changes, bars_per_year)
+    return EvalMetrics(
+        trade_count=len(pnls),
+        initial_market_value=market_values[0],
+        end_market_value=market_values[-1],
+        max_drawdown=max_dd,
+        max_drawdown_pct=max_dd_pct,
+        largest_win=largest_win,
+        largest_win_pct=largest_win_pct,
+        largest_win_bars=largest_win_num_bars,
+        largest_loss=largest_loss,
+        largest_loss_pct=largest_loss_pct,
+        largest_loss_bars=largest_loss_num_bars,
+        max_wins=max_wins,
+        max_losses=max_losses,
+        win_rate=win_rate,
+        loss_rate=loss_rate,
+        winning_trades=winning_trades,
+        losing_trades=losing_trades,
+        avg_pnl=avg_pnl,
+        avg_return_pct=avg_return_pct,
+        avg_trade_bars=avg_trade_bars,
+        avg_profit=avg_profit,
+        avg_profit_pct=avg_profit_pct,
+        avg_winning_trade_bars=avg_winning_trade_bars,
+        avg_loss=avg_loss,
+        avg_loss_pct=avg_loss_pct,
+        avg_losing_trade_bars=avg_losing_trade_bars,
+        total_profit=total_profit,
+        total_loss=total_loss,
+        total_pnl=total_pnl,
+        unrealized_pnl=unrealized_pnl,
+        total_return_pct=total_return_pct,
+        annual_return_pct=annual_return_pct,
+        total_fees=total_fees,
+        sharpe=sharpe,
+        sortino=sortino,
+        calmar=calmar,
+        profit_factor=pf,
+        equity_r2=r2,
+        ulcer_index=ui,
+        upi=upi_,
+        std_error=std_error,
+        annual_std_error=annual_std_error,
+        annual_volatility_pct=annual_volatility_pct,
+    )
 
 class ConfInterval(NamedTuple):
     """Confidence interval upper and low bounds.
@@ -881,11 +1043,10 @@ class EvaluateMixin:
     def _attr_index(self, class_obj, attr_name):
         vars(class_obj)['_fields'].index(attr_name)
 
+    #@njit
     def evaluate(
         self,
-        portfolio_df: deque[PortfolioBar],
         portfolio_np,
-        trades_df: deque[Trade],
         trades_np,
         winning_trades_np,
         losing_trades_np,
@@ -922,17 +1083,64 @@ class EvaluateMixin:
             or not bar_returns.size
             or not bar_changes.size
         ):
-            return EvalResult(EvalMetrics(), None)
-        trades_np = trades_np.reshape((len(trades_np), len(vars(Trade)['_fields'])))
-        trade_pnl_index = vars(Trade)['_fields'].index('pnl')
+            return EvalResult(EvalMetrics(
+                                trade_count=0,
+                                initial_market_value=0.0,
+                                end_market_value=0.0,
+                                total_pnl=0.0,
+                                unrealized_pnl=0.0,
+                                total_return_pct=0.0,
+                                annual_return_pct=None,
+                                total_profit=0.0,
+                                total_loss=0.0,
+                                total_fees=0.0,
+                                max_drawdown=0.0,
+                                max_drawdown_pct=0.0,
+                                win_rate=0.0,
+                                loss_rate=0.0,
+                                winning_trades=0,
+                                losing_trades=0,
+                                avg_pnl=0.0,
+                                avg_return_pct=0.0,
+                                avg_trade_bars=0.0,
+                                avg_profit=0.0,
+                                avg_profit_pct=0.0,
+                                avg_winning_trade_bars=0.0,
+                                avg_loss=0.0,
+                                avg_loss_pct=0.0,
+                                avg_losing_trade_bars=0.0,
+                                largest_win=0.0,
+                                largest_win_pct=0.0,
+                                largest_win_bars=0.0,
+                                largest_loss=0.0,
+                                largest_loss_pct=0.0,
+                                largest_loss_bars=0,
+                                max_wins=0,
+                                max_losses=0,
+                                sharpe=0.0,
+                                sortino=0.0,
+                                calmar=None,
+                                profit_factor=0.0,
+                                ulcer_index=0.0,
+                                upi=0.0,
+                                equity_r2=0.0,
+                                std_error=0.0,
+                                annual_std_error=None,
+                                annual_volatility_pct=None,
+                            ), 
+                            None
+                    )
+        trades_fields = vars(Trade)['_fields']
+        trades_np = trades_np.reshape((len(trades_np), len(trades_fields)))
+        trade_pnl_index = trades_fields.index('pnl')
         pnls = (trades_np[:, trade_pnl_index]).astype(float)
         winning_pnls = (winning_trades_np[:, trade_pnl_index]).astype(float)
         losing_pnls = (losing_trades_np[:, trade_pnl_index]).astype(float)
-        trade_return_pct_index = vars(Trade)['_fields'].index('return_pct')
+        trade_return_pct_index = trades_fields.index('return_pct')
         return_pcts = (trades_np[:, trade_return_pct_index]).astype(float)
         winning_return_pcts = (winning_trades_np[:, trade_return_pct_index]).astype(float)
         losing_return_pcts = (losing_trades_np[:, trade_return_pct_index]).astype(float)
-        trade_bars_index = vars(Trade)['_fields'].index('bars')
+        trade_bars_index = trades_fields.index('bars')
         bars = (trades_np[:, trade_bars_index]).astype(int)
         winning_bars = winning_trades_np[:, trade_bars_index]
         losing_bars = losing_trades_np[:, trade_bars_index]
@@ -952,15 +1160,15 @@ class EvaluateMixin:
             largest_loss_bars=largest_loss[trade_bars_index]
 
         metrics = self._calc_eval_metrics(
-            market_values,
-            bar_changes,
-            bar_returns,
-            pnls,
-            winning_pnls,
-            losing_pnls,
-            return_pcts,
-            winning_return_pcts,
-            losing_return_pcts,
+            market_values=market_values,
+            bar_changes=bar_changes,
+            bar_returns=bar_returns,
+            pnls=pnls,
+            pnl_profits=winning_pnls,
+            pnl_losses=losing_pnls,
+            return_pcts=return_pcts,
+            return_pct_profits=winning_return_pcts,
+            return_pct_losses=losing_return_pcts,
             bars=bars,
             winning_bars=winning_bars,
             losing_bars=losing_bars,
@@ -1004,168 +1212,59 @@ class EvaluateMixin:
         return EvalResult(metrics, bootstrap)
 
     def _calc_bar_returns(self, market_values: NDArray[np.float32]) -> NDArray[np.float32]:
-        prev_market_value = self._shift(market_values, 1)
-        returns = (market_values - prev_market_value) / prev_market_value
-        return returns[~np.isnan(returns)]
+        return _calc_bar_returns(market_values)
 
     def _calc_bar_changes(self, market_values: NDArray[np.float32]) -> NDArray[np.float32]:
-        prev_market_value = self._shift(market_values, 1)
-        changes = market_values - prev_market_value
-        return changes[~np.isnan(changes)]
-
-    def _shift(self, arr, num, fill_value=np.nan):
-        result = np.empty_like(arr)
-        if num > 0:
-            result[:num] = fill_value
-            result[num:] = arr[:-num]
-        elif num < 0:
-            result[num:] = fill_value
-            result[:num] = arr[-num:]
-        else:
-            result[:] = arr
-        return result
+        return _calc_bar_changes(market_values)
+    
+    def _shift(self, arr: NDArray[np.float32], num: int, fill_value: float = np.nan)-> NDArray[np.float32]:
+        return _shift(arr, num, fill_value)
 
     def _calc_eval_metrics(
         self,
-        market_values: NDArray[np.float_],
-        bar_changes:  NDArray[np.float_],
-        bar_returns:  NDArray[np.float_],
-        pnls:  NDArray[np.float_],
-        pnl_profits:  NDArray[np.float_],
-        pnl_losses:  NDArray[np.float_],
-        return_pcts:  NDArray[np.float_],
-        return_pct_profits:  NDArray[np.float_],
-        return_pct_losses:  NDArray[np.float_],
-        bars:  NDArray[np.int_],
-        winning_bars:  NDArray[np.int_],
-        losing_bars:  NDArray[np.int_],
+        market_values: NDArray[np.float32],
+        bar_changes:  NDArray[np.float32],
+        bar_returns:  NDArray[np.float32],
+        pnls:  NDArray[np.float32],
+        pnl_profits:  NDArray[np.float32],
+        pnl_losses:  NDArray[np.float32],
+        return_pcts:  NDArray[np.float32],
+        return_pct_profits:  NDArray[np.float32],
+        return_pct_losses:  NDArray[np.float32],
+        bars:  NDArray[np.int32],
+        winning_bars:  NDArray[np.int32],
+        losing_bars:  NDArray[np.int32],
         largest_win_num_bars: int,
         largest_win_pct: float,
         largest_loss_num_bars: int,
         largest_loss_pct: float,
-        fees: NDArray[np.float_],
+        fees: NDArray[np.float32],
         bars_per_year: Optional[int],
     ) -> EvalMetrics:
-        total_fees = fees[-1] if len(fees) else 0
-        max_dd = max_drawdown(bar_changes)
-        max_dd_pct = max_drawdown_percent(bar_returns)
-        sharpe = sharpe_ratio(bar_changes, bars_per_year)
-        sortino = sortino_ratio(bar_changes, bars_per_year)
-        pf = profit_factor(bar_changes)
-        r2 = r_squared(market_values)
-        ui = ulcer_index(market_values)
-        upi_ = upi(market_values, ui=ui)
-        std_error = float(np.std(market_values))
-        largest_win = 0.0
-        largest_loss = 0.0
-        win_rate = 0.0
-        loss_rate = 0.0
-        winning_trades = 0
-        losing_trades = 0
-        avg_pnl = 0.0
-        avg_return_pct = 0.0
-        avg_trade_bars = 0.0
-        avg_profit = 0.0
-        avg_loss = 0.0
-        avg_profit_pct = 0.0
-        avg_loss_pct = 0.0
-        avg_winning_trade_bars = 0.0
-        avg_losing_trade_bars = 0.0
-        total_profit = 0.0
-        total_loss = 0.0
-        total_pnl = 0.0
-        unrealized_pnl = 0.0
-        max_wins = 0
-        max_losses = 0
-        if pnls.size:
-            largest_win, largest_loss = largest_win_loss(pnl_profits, pnl_losses)
-            win_rate, loss_rate = win_loss_rate(pnl_profits, pnl_losses)
-            winning_trades, losing_trades = winning_losing_trades(pnl_profits, pnl_losses)
-            avg_profit, avg_loss = avg_profit_loss(pnl_profits, pnl_losses)
-            avg_profit_pct, avg_loss_pct = avg_profit_loss(return_pct_profits, return_pct_losses)
-            total_profit, total_loss = total_profit_loss(pnl_profits, pnl_losses)
-            max_wins, max_losses = max_wins_losses(pnls)
-            total_pnl = float(np.sum(pnls))
-            # Check length to avoid "Mean of empty slice" warning.
-            if pnls.size:
-                avg_pnl = float(np.mean(pnls))
-            if return_pcts.size:
-                avg_return_pct = float(np.mean(return_pcts))
-            if bars.size:
-                avg_trade_bars = float(np.mean(bars))
-            if winning_bars.size:
-                avg_winning_trade_bars = float(np.mean(winning_bars))
-            if losing_bars.size:
-                avg_losing_trade_bars = float(np.mean(losing_bars))
-        total_return_pct = total_return_percent(
-            initial_value=market_values[0], pnl=total_pnl
-        )
-        unrealized_pnl = market_values[-1] - market_values[0] - total_pnl
-        annual_return_pct = None
-        annual_std_error = None
-        annual_volatility_pct = None
-        calmar = None
-        if bars_per_year is not None:
-            annual_return_pct = annual_total_return_percent(
-                initial_value=market_values[0],
-                pnl=total_pnl,
-                bars_per_year=bars_per_year,
-                total_bars=len(market_values),
-            )
-            annual_std_error = std_error * np.sqrt(bars_per_year)
-            annual_volatility_pct = float(
-                np.std(bar_returns * 100) * np.sqrt(bars_per_year)
-            )
-            calmar = calmar_ratio(bar_changes, bars_per_year)
-        return EvalMetrics(
-            trade_count=len(pnls),
-            initial_market_value=market_values[0],
-            end_market_value=market_values[-1],
-            max_drawdown=max_dd,
-            max_drawdown_pct=max_dd_pct,
-            largest_win=largest_win,
-            largest_win_pct=largest_win_pct,
-            largest_win_bars=largest_win_num_bars,
-            largest_loss=largest_loss,
-            largest_loss_pct=largest_loss_pct,
-            largest_loss_bars=largest_loss_num_bars,
-            max_wins=max_wins,
-            max_losses=max_losses,
-            win_rate=win_rate,
-            loss_rate=loss_rate,
-            winning_trades=winning_trades,
-            losing_trades=losing_trades,
-            avg_pnl=avg_pnl,
-            avg_return_pct=avg_return_pct,
-            avg_trade_bars=avg_trade_bars,
-            avg_profit=avg_profit,
-            avg_profit_pct=avg_profit_pct,
-            avg_winning_trade_bars=avg_winning_trade_bars,
-            avg_loss=avg_loss,
-            avg_loss_pct=avg_loss_pct,
-            avg_losing_trade_bars=avg_losing_trade_bars,
-            total_profit=total_profit,
-            total_loss=total_loss,
-            total_pnl=total_pnl,
-            unrealized_pnl=unrealized_pnl,
-            total_return_pct=total_return_pct,
-            annual_return_pct=annual_return_pct,
-            total_fees=total_fees,
-            sharpe=sharpe,
-            sortino=sortino,
-            calmar=calmar,
-            profit_factor=pf,
-            equity_r2=r2,
-            ulcer_index=ui,
-            upi=upi_,
-            std_error=std_error,
-            annual_std_error=annual_std_error,
-            annual_volatility_pct=annual_volatility_pct,
-        )
+        return _calc_eval_metrics(
+                    market_values=market_values,
+                    bar_changes=bar_changes,
+                    bar_returns=bar_returns,
+                    pnls=pnls,
+                    pnl_profits=pnl_profits,
+                    pnl_losses=pnl_losses,
+                    return_pcts=return_pcts,
+                    return_pct_profits=return_pct_profits,
+                    return_pct_losses=return_pct_losses,
+                    bars=bars,
+                    winning_bars=winning_bars,
+                    losing_bars=losing_bars,
+                    largest_win_num_bars=largest_win_num_bars,
+                    largest_win_pct=largest_win_pct,
+                    largest_loss_num_bars=largest_loss_num_bars,
+                    largest_loss_pct=largest_loss_pct,
+                    fees=fees,
+                    bars_per_year=bars_per_year,
+                )
 
     def _calc_conf_intervals(
         self,
-        changes: NDArray[np.float_],
+        changes: NDArray[np.float32],
         sample_size: int,
         samples: int,
         bars_per_year: Optional[int],
@@ -1197,8 +1296,8 @@ class EvaluateMixin:
 
     def _calc_drawdown_conf(
         self,
-        changes: NDArray[np.float_],
-        returns: NDArray[np.float_],
+        changes: NDArray[np.float32],
+        returns: NDArray[np.float32],
         sample_size: int,
         samples: int,
     ) -> _DrawdownResult:
